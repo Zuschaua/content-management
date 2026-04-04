@@ -167,3 +167,114 @@ export async function updateClient(
 export async function archiveClient(id: string): Promise<void> {
   await apiFetch(`/api/v1/clients/${id}`, { method: "DELETE" });
 }
+
+// --- Agent Config API ---
+
+export type AgentType =
+  | "website_analyzer"
+  | "blog_tracker"
+  | "competitor_analyzer"
+  | "suggestion_engine"
+  | "article_writer"
+  | "image_generator";
+
+export type AgentConfig = {
+  id: string;
+  agentType: AgentType;
+  clientId?: string | null;
+  displayName: string;
+  systemPrompt: string;
+  modelProvider: string;
+  modelName: string;
+  baseUrl?: string | null;
+  hasApiKey: boolean;
+  temperature?: string | null;
+  maxTokens?: number | null;
+  extraConfig?: Record<string, unknown> | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AgentPromptVersion = {
+  id: string;
+  agentConfigId: string;
+  version: number;
+  systemPrompt: string;
+  changedBy?: string | null;
+  createdAt: string;
+};
+
+export type CreateAgentConfigInput = {
+  agentType: AgentType;
+  displayName: string;
+  systemPrompt: string;
+  modelProvider: string;
+  modelName: string;
+  baseUrl?: string;
+  apiKey?: string;
+  temperature?: number;
+  maxTokens?: number;
+  extraConfig?: Record<string, unknown>;
+};
+
+export type UpdateAgentConfigInput = Partial<Omit<CreateAgentConfigInput, "agentType">>;
+
+export async function listGlobalAgentConfigs(): Promise<{ configs: AgentConfig[] }> {
+  return apiFetch("/api/v1/agent-configs/global");
+}
+
+export async function listClientAgentConfigs(
+  clientId: string
+): Promise<{ configs: AgentConfig[] }> {
+  return apiFetch(`/api/v1/agent-configs/clients/${clientId}/agent-configs`);
+}
+
+export async function createGlobalAgentConfig(
+  data: CreateAgentConfigInput
+): Promise<{ config: AgentConfig }> {
+  return apiFetch("/api/v1/agent-configs/global", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function createClientAgentConfig(
+  clientId: string,
+  data: CreateAgentConfigInput
+): Promise<{ config: AgentConfig }> {
+  return apiFetch(`/api/v1/agent-configs/clients/${clientId}/agent-configs`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateAgentConfig(
+  id: string,
+  data: UpdateAgentConfigInput
+): Promise<{ config: AgentConfig }> {
+  return apiFetch(`/api/v1/agent-configs/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteAgentConfig(id: string): Promise<void> {
+  await apiFetch(`/api/v1/agent-configs/${id}`, { method: "DELETE" });
+}
+
+export async function listAgentConfigVersions(
+  id: string
+): Promise<{ versions: AgentPromptVersion[] }> {
+  return apiFetch(`/api/v1/agent-configs/${id}/versions`);
+}
+
+export async function rollbackAgentConfig(
+  id: string,
+  version: number
+): Promise<{ config: AgentConfig }> {
+  return apiFetch(`/api/v1/agent-configs/${id}/rollback`, {
+    method: "POST",
+    body: JSON.stringify({ version }),
+  });
+}

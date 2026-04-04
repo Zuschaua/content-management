@@ -39,7 +39,7 @@ export const articleStatusValues = [
   "ready",
 ] as const;
 
-export type ArticleStatus = (typeof articleStatusValues)[number];
+type ArticleStatus = (typeof articleStatusValues)[number];
 
 export const validTransitions: Record<ArticleStatus, ArticleStatus[]> = {
   suggested: ["approved"],
@@ -56,3 +56,36 @@ export function canTransition(
 ): boolean {
   return validTransitions[from]?.includes(to) ?? false;
 }
+
+export const agentTypeValues = [
+  "website_analyzer",
+  "blog_tracker",
+  "competitor_analyzer",
+  "suggestion_engine",
+  "article_writer",
+  "image_generator",
+] as const;
+
+export const modelProviderValues = ["openai", "anthropic", "google", "custom"] as const;
+
+export const createAgentConfigSchema = z.object({
+  agentType: z.enum(agentTypeValues),
+  clientId: z.string().uuid().optional(),
+  displayName: z.string().min(1).max(255),
+  systemPrompt: z.string().min(1),
+  modelProvider: z.string().min(1).max(100),
+  modelName: z.string().min(1).max(100),
+  baseUrl: z.string().url().max(2048).optional(),
+  apiKey: z.string().max(512).optional(),
+  temperature: z.number().min(0).max(2).optional(),
+  maxTokens: z.number().int().positive().optional(),
+  extraConfig: z.record(z.unknown()).optional(),
+});
+
+export const updateAgentConfigSchema = createAgentConfigSchema
+  .omit({ agentType: true, clientId: true })
+  .partial();
+
+export const rollbackPromptSchema = z.object({
+  version: z.number().int().positive(),
+});
