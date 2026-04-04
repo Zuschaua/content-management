@@ -172,8 +172,10 @@ export async function articleRoutes(app: FastifyInstance) {
           ...(body !== undefined ? { body } : {}),
           updatedAt: new Date(),
         })
-        .where(eq(articles.id, articleId))
+        .where(and(eq(articles.id, articleId), eq(articles.clientId, clientId)))
         .returning();
+
+      if (!article) return reply.status(404).send({ error: "Article not found" });
 
       return reply.send({ article });
     }
@@ -234,8 +236,10 @@ export async function articleRoutes(app: FastifyInstance) {
       const [article] = await db
         .update(articles)
         .set({ status: toStatus, updatedAt: new Date() })
-        .where(eq(articles.id, articleId))
+        .where(and(eq(articles.id, articleId), eq(articles.clientId, clientId)))
         .returning();
+
+      if (!article) return reply.status(404).send({ error: "Article not found" });
 
       return reply.send({ article });
     }
