@@ -6,6 +6,7 @@ import { authRoutes } from "./routes/auth.js";
 import { clientRoutes } from "./routes/clients.js";
 import { userRoutes } from "./routes/users.js";
 import { agentConfigRoutes } from "./routes/agent-configs.js";
+import { knowledgeBaseRoutes } from "./routes/knowledge-base.js";
 import { agentRoutes } from "./routes/agents.js";
 import { articleRoutes } from "./routes/articles.js";
 import authenticatePlugin from "./plugins/authenticate.js";
@@ -32,6 +33,7 @@ await app.register(authRoutes, { prefix: "/api/v1/auth" });
 await app.register(clientRoutes, { prefix: "/api/v1/clients" });
 await app.register(userRoutes, { prefix: "/api/v1/users" });
 await app.register(agentConfigRoutes, { prefix: "/api/v1/agent-configs" });
+await app.register(knowledgeBaseRoutes, { prefix: "/api/v1/clients" });
 await app.register(agentRoutes, { prefix: "/api/v1/clients" });
 await app.register(articleRoutes, { prefix: "/api/v1/clients" });
 

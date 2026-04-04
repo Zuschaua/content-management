@@ -84,3 +84,60 @@ export interface AgentPromptVersion {
   changedBy?: string | null;
   createdAt: string;
 }
+
+export type KbSectionType =
+  | "niche_overview"
+  | "products_services"
+  | "target_audience"
+  | "competitors"
+  | "content_gaps"
+  | "what_works"
+  | "custom";
+
+export type ChangeSource = "human" | "agent";
+
+export interface KbSection {
+  id: string;
+  clientId: string;
+  sectionType: KbSectionType;
+  title: string;
+  content: string;
+  sourceAgent?: string | null;
+  sortOrder: number;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KbVersion {
+  id: string;
+  sectionId: string;
+  version: number;
+  content: string;
+  changedBy?: string | null;
+  changeSource: ChangeSource;
+  createdAt: string;
+}
+
+export type SectionType = "intro" | "heading" | "subheading" | "conclusion";
+
+export interface ArticleSection {
+  id: string;
+  articleId: string;
+  heading: string;
+  body: string;
+  sortOrder: number;
+  sectionType?: SectionType | null;
+  updatedAt: string;
+}
+
+export interface ArticleVersion {
+  id: string;
+  articleId: string;
+  version: number;
+  body: string;
+  changeSource: ChangeSource;
+  changeNote?: string | null;
+  changedBy?: string | null;
+  createdAt: string;
+}
