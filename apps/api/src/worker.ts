@@ -1,5 +1,6 @@
 import { Worker } from "bullmq";
 import IORedis from "ioredis";
+import { processAnalyzeWebsiteJob } from "./jobs/analyze-website.js";
 
 const redisUrl = process.env.REDIS_URL ?? "redis://localhost:6379";
 const connection = new IORedis(redisUrl, { maxRetriesPerRequest: null });
@@ -9,9 +10,12 @@ const agentWorker = new Worker(
   async (job) => {
     console.log(`Processing job ${job.id}: ${job.name}`, job.data);
 
-    // TODO: Route to appropriate agent based on job.name
     switch (job.name) {
       case "analyze-website":
+        await processAnalyzeWebsiteJob(job as Parameters<typeof processAnalyzeWebsiteJob>[0]);
+        break;
+
+      // Remaining agents (M3, M4, M7, M9, M12) — to be implemented
       case "track-blog":
       case "analyze-competitors":
       case "suggest-articles":
@@ -20,6 +24,7 @@ const agentWorker = new Worker(
       case "generate-images":
         console.log(`Agent job type: ${job.name} — not yet implemented`);
         break;
+
       default:
         console.warn(`Unknown job type: ${job.name}`);
     }
