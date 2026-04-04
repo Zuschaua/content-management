@@ -1,8 +1,8 @@
 import { generateObject } from "ai";
 import { z } from "zod";
 import type { AgentType } from "@content-factory/shared";
-import { BaseAgent } from "./index.js";
-import type { AgentInput, AgentOutput, ResolvedAgentConfig } from "./index.js";
+import { BaseAgent } from "./base.js";
+import type { AgentInput, AgentOutput, ResolvedAgentConfig } from "./base.js";
 import { createModelFromConfig } from "./create-model.js";
 
 export interface CrawledPage {

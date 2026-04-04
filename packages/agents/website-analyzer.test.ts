@@ -149,16 +149,17 @@ describe("WebsiteAnalyzerAgent", () => {
     );
   });
 
-  it("propagates LLM errors as exceptions", async () => {
+  it("returns failure result when LLM throws", async () => {
     vi.mocked(generateObject).mockRejectedValue(new Error("LLM rate limited"));
     const agent = new WebsiteAnalyzerAgent(mockConfig);
 
-    await expect(
-      agent.execute({
-        clientId: "client-123",
-        agentType: "website_analyzer",
-        params: { websiteUrl: "https://example.com", crawledPages: mockCrawledPages },
-      })
-    ).rejects.toThrow("LLM rate limited");
+    const result = await agent.execute({
+      clientId: "client-123",
+      agentType: "website_analyzer",
+      params: { websiteUrl: "https://example.com", crawledPages: mockCrawledPages },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/LLM rate limited/);
   });
 });
