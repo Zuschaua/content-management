@@ -62,13 +62,25 @@ export interface Article {
 export interface AgentConfig {
   id: string;
   agentType: AgentType;
-  clientId?: string;
+  clientId?: string | null;
   displayName: string;
   systemPrompt: string;
   modelProvider: string;
   modelName: string;
-  baseUrl?: string;
-  temperature: number;
-  maxTokens?: number;
+  baseUrl?: string | null;
+  temperature?: number | null;
+  maxTokens?: number | null;
+  extraConfig?: Record<string, unknown> | null;
   version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgentPromptVersion {
+  id: string;
+  agentConfigId: string;
+  version: number;
+  systemPrompt: string;
+  changedBy?: string | null;
+  createdAt: string;
 }

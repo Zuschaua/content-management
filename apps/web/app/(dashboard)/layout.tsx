@@ -44,7 +44,10 @@ export default async function DashboardLayout({
           <NavItem href="/pipeline" label="Pipeline" />
           <NavItem href="/calendar" label="Calendar" />
           {session.user?.role === "admin" && (
-            <NavItem href="/settings/users" label="Users" />
+            <>
+              <NavItem href="/settings/users" label="Users" />
+              <NavItem href="/settings/agent-configs" label="Agent Configs" />
+            </>
           )}
           <NavItem href="/settings" label="Settings" />
         </nav>
