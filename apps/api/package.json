@@ -27,7 +27,8 @@
     "zod": "^3.24.0",
     "@aws-sdk/client-s3": "^3.800.0",
     "@aws-sdk/s3-request-presigner": "^3.800.0",
-    "argon2": "^0.43.0"
+    "argon2": "^0.43.0",
+    "fastify-plugin": "^5.0.0"
   },
   "devDependencies": {
     "drizzle-kit": "^0.30.0",

@@ -4,6 +4,8 @@ import cookie from "@fastify/cookie";
 import { healthRoutes } from "./routes/health.js";
 import { authRoutes } from "./routes/auth.js";
 import { clientRoutes } from "./routes/clients.js";
+import { userRoutes } from "./routes/users.js";
+import authenticatePlugin from "./plugins/authenticate.js";
 
 const app = Fastify({
   logger: {
@@ -17,11 +19,13 @@ await app.register(cors, {
 });
 
 await app.register(cookie);
+await app.register(authenticatePlugin);
 
 // Routes
 await app.register(healthRoutes, { prefix: "/api/v1" });
 await app.register(authRoutes, { prefix: "/api/v1/auth" });
 await app.register(clientRoutes, { prefix: "/api/v1/clients" });
+await app.register(userRoutes, { prefix: "/api/v1/users" });
 
 const port = parseInt(process.env.PORT ?? "3001", 10);
 const host = process.env.HOST ?? "0.0.0.0";
