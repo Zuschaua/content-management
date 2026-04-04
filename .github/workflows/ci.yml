@@ -29,6 +29,97 @@ jobs:
 
       - run: pnpm turbo test
 
+  e2e-tests:
+    runs-on: ubuntu-latest
+    needs: lint-typecheck-test
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: content_factory_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/content_factory_test
+      REDIS_URL: redis://localhost:6379
+      NODE_ENV: test
+      PORT: 3001
+      CORS_ORIGIN: http://localhost:3000
+      ENCRYPTION_KEY: test-encryption-key-32-chars-long!!
+      SESSION_SECRET: test-session-secret-for-ci-only
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build API
+        run: pnpm --filter @content-factory/api build
+
+      - name: Run database migrations
+        run: pnpm db:migrate
+
+      - name: Start API server
+        run: node apps/api/dist/server.js &
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/content_factory_test
+          REDIS_URL: redis://localhost:6379
+          NODE_ENV: test
+          PORT: 3001
+          ENCRYPTION_KEY: test-encryption-key-32-chars-long!!
+
+      - name: Wait for API to be ready
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3001/api/v1/health && break
+            echo "Waiting for API... attempt $i"
+            sleep 2
+          done
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @content-factory/e2e exec playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        run: pnpm --filter @content-factory/e2e test
+        env:
+          API_URL: http://localhost:3001
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: apps/e2e/playwright-report/
+          retention-days: 14
+
   docker-build:
     runs-on: ubuntu-latest
     needs: lint-typecheck-test
