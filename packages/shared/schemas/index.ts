@@ -89,3 +89,35 @@ export const updateAgentConfigSchema = createAgentConfigSchema
 export const rollbackPromptSchema = z.object({
   version: z.number().int().positive(),
 });
+
+// --- Knowledge Base ---
+
+export const kbSectionTypeValues = [
+  "niche_overview",
+  "products_services",
+  "target_audience",
+  "competitors",
+  "content_gaps",
+  "what_works",
+  "custom",
+] as const;
+
+export const changeSourceValues = ["human", "agent"] as const;
+
+export const createKbSectionSchema = z.object({
+  sectionType: z.enum(kbSectionTypeValues),
+  title: z.string().min(1).max(255),
+  content: z.string(),
+  sortOrder: z.number().int().min(0).optional(),
+  sourceAgent: z.string().max(100).optional(),
+});
+
+export const updateKbSectionSchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  content: z.string().optional(),
+  sortOrder: z.number().int().min(0).optional(),
+});
+
+export const revertKbSectionSchema = z.object({
+  version: z.number().int().positive(),
+});

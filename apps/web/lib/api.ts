@@ -278,3 +278,117 @@ export async function rollbackAgentConfig(
     body: JSON.stringify({ version }),
   });
 }
+
+// --- Knowledge Base API ---
+
+export type KbSectionType =
+  | "niche_overview"
+  | "products_services"
+  | "target_audience"
+  | "competitors"
+  | "content_gaps"
+  | "what_works"
+  | "custom";
+
+export type KbSection = {
+  id: string;
+  clientId: string;
+  sectionType: KbSectionType;
+  title: string;
+  content: string;
+  sourceAgent?: string | null;
+  sortOrder: number;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type KbVersion = {
+  id: string;
+  sectionId: string;
+  version: number;
+  content: string;
+  changedBy?: string | null;
+  changeSource: "human" | "agent";
+  createdAt: string;
+};
+
+export type CreateKbSectionInput = {
+  sectionType: KbSectionType;
+  title: string;
+  content: string;
+  sortOrder?: number;
+  sourceAgent?: string;
+};
+
+export type UpdateKbSectionInput = {
+  title?: string;
+  content?: string;
+  sortOrder?: number;
+};
+
+export async function listKbSections(
+  clientId: string
+): Promise<{ sections: KbSection[] }> {
+  return apiFetch(`/api/v1/clients/${clientId}/knowledge-base`);
+}
+
+export async function getKbSection(
+  clientId: string,
+  sectionId: string
+): Promise<{ section: KbSection }> {
+  return apiFetch(`/api/v1/clients/${clientId}/knowledge-base/${sectionId}`);
+}
+
+export async function createKbSection(
+  clientId: string,
+  data: CreateKbSectionInput
+): Promise<{ section: KbSection }> {
+  return apiFetch(`/api/v1/clients/${clientId}/knowledge-base`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateKbSection(
+  clientId: string,
+  sectionId: string,
+  data: UpdateKbSectionInput
+): Promise<{ section: KbSection }> {
+  return apiFetch(`/api/v1/clients/${clientId}/knowledge-base/${sectionId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteKbSection(
+  clientId: string,
+  sectionId: string
+): Promise<void> {
+  await apiFetch(`/api/v1/clients/${clientId}/knowledge-base/${sectionId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function listKbVersions(
+  clientId: string,
+  sectionId: string
+): Promise<{ versions: KbVersion[] }> {
+  return apiFetch(
+    `/api/v1/clients/${clientId}/knowledge-base/${sectionId}/versions`
+  );
+}
+
+export async function revertKbSection(
+  clientId: string,
+  sectionId: string,
+  version: number
+): Promise<{ section: KbSection }> {
+  return apiFetch(
+    `/api/v1/clients/${clientId}/knowledge-base/${sectionId}/revert`,
+    {
+      method: "POST",
+      body: JSON.stringify({ version }),
+    }
+  );
+}

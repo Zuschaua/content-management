@@ -17,7 +17,11 @@
     "@tanstack/react-query": "^5.74.0",
     "date-fns": "^4.1.0",
     "clsx": "^2.1.0",
-    "tailwind-merge": "^3.2.0"
+    "tailwind-merge": "^3.2.0",
+    "@tiptap/react": "^2.11.5",
+    "@tiptap/pm": "^2.11.5",
+    "@tiptap/starter-kit": "^2.11.5",
+    "@tiptap/extension-placeholder": "^2.11.5"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

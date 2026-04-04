@@ -107,6 +107,16 @@ export default function ClientDetailPage() {
         )}
       </div>
 
+      {/* Quick nav */}
+      <div className="flex gap-2 mb-6">
+        <a
+          href={`/clients/${id}/knowledge-base`}
+          className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+        >
+          Knowledge Base →
+        </a>
+      </div>
+
       {error && (
         <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2 mb-4">
           {error}
