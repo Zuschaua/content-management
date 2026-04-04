@@ -141,3 +141,14 @@ export interface ArticleVersion {
   changedBy?: string | null;
   createdAt: string;
 }
+
+export interface ArticleComment {
+  id: string;
+  articleId: string;
+  sectionId?: string | null;
+  userId: string;
+  comment: string;
+  resolved: boolean;
+  createdAt: string;
+  updatedAt: string;
+}

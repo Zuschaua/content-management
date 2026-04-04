@@ -588,6 +588,60 @@ export async function deleteArticleSection(
   );
 }
 
+// --- Article Comments API ---
+
+export type ArticleComment = {
+  id: string;
+  articleId: string;
+  sectionId?: string | null;
+  userId: string;
+  comment: string;
+  resolved: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function listArticleComments(
+  clientId: string,
+  articleId: string
+): Promise<{ comments: ArticleComment[] }> {
+  return apiFetch(`/api/v1/clients/${clientId}/articles/${articleId}/comments`);
+}
+
+export async function createArticleComment(
+  clientId: string,
+  articleId: string,
+  data: { comment: string; sectionId?: string }
+): Promise<{ comment: ArticleComment }> {
+  return apiFetch(
+    `/api/v1/clients/${clientId}/articles/${articleId}/comments`,
+    { method: "POST", body: JSON.stringify(data) }
+  );
+}
+
+export async function resolveArticleComment(
+  clientId: string,
+  articleId: string,
+  commentId: string,
+  resolved: boolean
+): Promise<{ comment: ArticleComment }> {
+  return apiFetch(
+    `/api/v1/clients/${clientId}/articles/${articleId}/comments/${commentId}`,
+    { method: "PATCH", body: JSON.stringify({ resolved }) }
+  );
+}
+
+export async function deleteArticleComment(
+  clientId: string,
+  articleId: string,
+  commentId: string
+): Promise<void> {
+  await apiFetch(
+    `/api/v1/clients/${clientId}/articles/${articleId}/comments/${commentId}`,
+    { method: "DELETE" }
+  );
+}
+
 // --- Calendar API ---
 
 export async function getCalendar(

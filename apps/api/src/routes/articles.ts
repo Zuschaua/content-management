@@ -5,6 +5,7 @@ import {
   articles,
   articleVersions,
   articleSections,
+  articleComments,
   clients,
 } from "../db/schema.js";
 import { requireAuth } from "../plugins/authenticate.js";
@@ -14,6 +15,8 @@ import {
   transitionArticleStatusSchema,
   createArticleSectionSchema,
   updateArticleSectionSchema,
+  createArticleCommentSchema,
+  updateArticleCommentSchema,
   canTransition,
   articleStatusValues,
 } from "@content-factory/shared";
@@ -377,6 +380,147 @@ export async function articleRoutes(app: FastifyInstance) {
         .returning({ id: articleSections.id });
 
       if (rows.length === 0) return reply.status(404).send({ error: "Section not found" });
+
+      return reply.status(204).send();
+    }
+  );
+
+  // GET /clients/:clientId/articles/:articleId/comments
+  app.get(
+    "/:clientId/articles/:articleId/comments",
+    { preHandler: [requireAuth] },
+    async (request, reply) => {
+      const { clientId, articleId } = request.params as {
+        clientId: string;
+        articleId: string;
+      };
+
+      const [article] = await db
+        .select({ id: articles.id })
+        .from(articles)
+        .where(and(eq(articles.id, articleId), eq(articles.clientId, clientId)))
+        .limit(1);
+
+      if (!article) return reply.status(404).send({ error: "Article not found" });
+
+      const comments = await db
+        .select()
+        .from(articleComments)
+        .where(eq(articleComments.articleId, articleId))
+        .orderBy(asc(articleComments.createdAt));
+
+      return reply.send({ comments });
+    }
+  );
+
+  // POST /clients/:clientId/articles/:articleId/comments
+  app.post(
+    "/:clientId/articles/:articleId/comments",
+    { preHandler: [requireAuth] },
+    async (request, reply) => {
+      const { clientId, articleId } = request.params as {
+        clientId: string;
+        articleId: string;
+      };
+
+      const [article] = await db
+        .select({ id: articles.id })
+        .from(articles)
+        .where(and(eq(articles.id, articleId), eq(articles.clientId, clientId)))
+        .limit(1);
+
+      if (!article) return reply.status(404).send({ error: "Article not found" });
+
+      const parsed = createArticleCommentSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: parsed.error.flatten() });
+      }
+
+      const [comment] = await db
+        .insert(articleComments)
+        .values({
+          articleId,
+          userId: request.user!.userId,
+          comment: parsed.data.comment,
+          sectionId: parsed.data.sectionId ?? null,
+        })
+        .returning();
+
+      return reply.status(201).send({ comment });
+    }
+  );
+
+  // PATCH /clients/:clientId/articles/:articleId/comments/:commentId
+  app.patch(
+    "/:clientId/articles/:articleId/comments/:commentId",
+    { preHandler: [requireAuth] },
+    async (request, reply) => {
+      const { clientId, articleId, commentId } = request.params as {
+        clientId: string;
+        articleId: string;
+        commentId: string;
+      };
+
+      const [article] = await db
+        .select({ id: articles.id })
+        .from(articles)
+        .where(and(eq(articles.id, articleId), eq(articles.clientId, clientId)))
+        .limit(1);
+
+      if (!article) return reply.status(404).send({ error: "Article not found" });
+
+      const parsed = updateArticleCommentSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: parsed.error.flatten() });
+      }
+
+      const rows = await db
+        .update(articleComments)
+        .set({ ...parsed.data, updatedAt: new Date() })
+        .where(
+          and(
+            eq(articleComments.id, commentId),
+            eq(articleComments.articleId, articleId)
+          )
+        )
+        .returning();
+
+      if (rows.length === 0) return reply.status(404).send({ error: "Comment not found" });
+
+      return reply.send({ comment: rows[0] });
+    }
+  );
+
+  // DELETE /clients/:clientId/articles/:articleId/comments/:commentId
+  app.delete(
+    "/:clientId/articles/:articleId/comments/:commentId",
+    { preHandler: [requireAuth] },
+    async (request, reply) => {
+      const { clientId, articleId, commentId } = request.params as {
+        clientId: string;
+        articleId: string;
+        commentId: string;
+      };
+
+      const [article] = await db
+        .select({ id: articles.id })
+        .from(articles)
+        .where(and(eq(articles.id, articleId), eq(articles.clientId, clientId)))
+        .limit(1);
+
+      if (!article) return reply.status(404).send({ error: "Article not found" });
+
+      const rows = await db
+        .delete(articleComments)
+        .where(
+          and(
+            eq(articleComments.id, commentId),
+            eq(articleComments.articleId, articleId)
+          )
+        )
+        .returning({ id: articleComments.id });
+
+      if (rows.length === 0) return reply.status(404).send({ error: "Comment not found" });
 
       return reply.status(204).send();
     }

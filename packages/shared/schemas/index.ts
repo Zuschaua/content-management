@@ -169,3 +169,15 @@ export const createArticleSectionSchema = z.object({
 });
 
 export const updateArticleSectionSchema = createArticleSectionSchema.partial();
+
+// --- Article Comments ---
+
+export const createArticleCommentSchema = z.object({
+  comment: z.string().min(1),
+  sectionId: z.string().uuid().optional(),
+});
+
+export const updateArticleCommentSchema = z.object({
+  resolved: z.boolean().optional(),
+  comment: z.string().min(1).optional(),
+});
