@@ -124,7 +124,7 @@ export async function agentConfigRoutes(app: FastifyInstance) {
         agentConfigId: row.id,
         version: 1,
         systemPrompt,
-        changedBy: null,
+        changedBy: request.user!.userId,
       });
 
       return reply.status(201).send({ config: sanitizeConfig(row) });
@@ -214,7 +214,7 @@ export async function agentConfigRoutes(app: FastifyInstance) {
         agentConfigId: row.id,
         version: 1,
         systemPrompt,
-        changedBy: null,
+        changedBy: request.user!.userId,
       });
 
       return reply.status(201).send({ config: sanitizeConfig(row) });
@@ -296,7 +296,7 @@ export async function agentConfigRoutes(app: FastifyInstance) {
           agentConfigId: id,
           version: newVersion,
           systemPrompt: systemPrompt!,
-          changedBy: null,
+          changedBy: request.user!.userId,
         });
       }
 
@@ -406,7 +406,7 @@ export async function agentConfigRoutes(app: FastifyInstance) {
         agentConfigId: id,
         version: newVersion,
         systemPrompt: targetVersionRow.systemPrompt,
-        changedBy: null,
+        changedBy: request.user!.userId,
       });
 
       const [row] = await db
@@ -429,7 +429,7 @@ export async function agentConfigRoutes(app: FastifyInstance) {
     { preHandler: [requireAuth] },
     async (request, reply) => {
       const { agentType } = request.params as { agentType: string };
-      const clientId = (request as { clientId?: string }).clientId;
+      const clientId = request.headers["x-client-id"] as string | undefined;
 
       let row = null;
 
