@@ -15,9 +15,15 @@ import type { ResolvedAgentConfig } from "./index.js";
  * and using @ai-sdk/anthropic when that package is added.
  */
 export function createModelFromConfig(config: ResolvedAgentConfig): LanguageModel {
+  if (!config.apiKey) {
+    throw new Error(
+      "Agent config is missing apiKey — ensure an API key is saved for this agent type."
+    );
+  }
+
   const provider = createOpenAI({
     baseURL: config.baseUrl ?? undefined,
-    apiKey: config.apiKey ?? "placeholder",
+    apiKey: config.apiKey,
   });
 
   return provider(config.modelName);

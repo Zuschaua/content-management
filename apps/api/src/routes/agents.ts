@@ -2,11 +2,21 @@ import type { FastifyInstance } from "fastify";
 import { Queue } from "bullmq";
 import IORedis from "ioredis";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "../db/index.js";
 import { agentJobs, clients } from "../db/schema.js";
 import { requireAuth } from "../plugins/authenticate.js";
 
 const redisUrl = process.env.REDIS_URL ?? "redis://localhost:6379";
+
+const clientIdParamsSchema = z.object({
+  clientId: z.string().uuid("clientId must be a valid UUID"),
+});
+
+const jobParamsSchema = z.object({
+  clientId: z.string().uuid("clientId must be a valid UUID"),
+  jobId: z.string().uuid("jobId must be a valid UUID"),
+});
 
 // Lazy-init the BullMQ queue (shared with worker)
 let agentQueue: Queue | null = null;
@@ -29,7 +39,11 @@ export async function agentRoutes(app: FastifyInstance) {
     "/:clientId/agents/analyze-website",
     { preHandler: [requireAuth] },
     async (request, reply) => {
-      const { clientId } = request.params;
+      const paramsParsed = clientIdParamsSchema.safeParse(request.params);
+      if (!paramsParsed.success) {
+        return reply.status(400).send({ error: paramsParsed.error.errors[0]?.message ?? "Invalid params" });
+      }
+      const { clientId } = paramsParsed.data;
 
       // Verify client exists
       const clientRows = await db
@@ -85,7 +99,11 @@ export async function agentRoutes(app: FastifyInstance) {
     "/:clientId/agents/jobs/:jobId",
     { preHandler: [requireAuth] },
     async (request, reply) => {
-      const { clientId, jobId } = request.params;
+      const paramsParsed = jobParamsSchema.safeParse(request.params);
+      if (!paramsParsed.success) {
+        return reply.status(400).send({ error: paramsParsed.error.errors[0]?.message ?? "Invalid params" });
+      }
+      const { clientId, jobId } = paramsParsed.data;
 
       const rows = await db
         .select()
@@ -116,7 +134,11 @@ export async function agentRoutes(app: FastifyInstance) {
     "/:clientId/agents/jobs/:jobId/progress",
     { preHandler: [requireAuth] },
     async (request, reply) => {
-      const { clientId, jobId } = request.params;
+      const paramsParsed = jobParamsSchema.safeParse(request.params);
+      if (!paramsParsed.success) {
+        return reply.status(400).send({ error: paramsParsed.error.errors[0]?.message ?? "Invalid params" });
+      }
+      const { clientId, jobId } = paramsParsed.data;
 
       // Validate job belongs to this client upfront
       const initial = await db
