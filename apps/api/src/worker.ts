@@ -1,6 +1,7 @@
 import { Worker } from "bullmq";
 import IORedis from "ioredis";
 import { processAnalyzeWebsiteJob } from "./jobs/analyze-website.js";
+import { processTrackBlogJob } from "./jobs/track-blog.js";
 
 const redisUrl = process.env.REDIS_URL ?? "redis://localhost:6379";
 const connection = new IORedis(redisUrl, { maxRetriesPerRequest: null });
@@ -15,8 +16,11 @@ const agentWorker = new Worker(
         await processAnalyzeWebsiteJob(job as Parameters<typeof processAnalyzeWebsiteJob>[0]);
         break;
 
-      // Remaining agents (M3, M4, M7, M9, M12) — to be implemented
       case "track-blog":
+        await processTrackBlogJob(job as Parameters<typeof processTrackBlogJob>[0]);
+        break;
+
+      // Remaining agents (M4, M7, M9, M12) — to be implemented
       case "analyze-competitors":
       case "suggest-articles":
       case "write-article":

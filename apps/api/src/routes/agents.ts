@@ -77,6 +77,63 @@ export async function agentRoutes(app: FastifyInstance) {
   );
 
   /**
+   * POST /api/v1/clients/:clientId/agents/track-blog
+   *
+   * Enqueues a blog content tracking job for the given client.
+   * Crawls the client's website to discover and index existing blog posts.
+   */
+  app.post<{ Params: { clientId: string } }>(
+    "/:clientId/agents/track-blog",
+    { preHandler: [requireAuth] },
+    async (request, reply) => {
+      const { clientId } = request.params;
+
+      // Verify client exists
+      const clientRows = await db
+        .select({ id: clients.id, active: clients.active })
+        .from(clients)
+        .where(eq(clients.id, clientId))
+        .limit(1);
+
+      if (clientRows.length === 0) {
+        return reply.status(404).send({ error: "Client not found" });
+      }
+      if (!clientRows[0].active) {
+        return reply.status(409).send({ error: "Client is archived" });
+      }
+
+      // Create the agentJobs record (queued state)
+      const [agentJob] = await db
+        .insert(agentJobs)
+        .values({
+          clientId,
+          agentType: "blog_tracker",
+          jobType: "track-blog",
+          status: "queued",
+          progress: 0,
+          inputData: { triggeredBy: request.user!.userId },
+        })
+        .returning({ id: agentJobs.id });
+
+      // Enqueue the BullMQ job
+      await getQueue().add(
+        "track-blog",
+        { agentJobId: agentJob.id, clientId },
+        {
+          jobId: agentJob.id,
+          attempts: 2,
+          backoff: { type: "fixed", delay: 5000 },
+        }
+      );
+
+      return reply.status(202).send({
+        agentJobId: agentJob.id,
+        message: "Blog tracking job queued",
+      });
+    }
+  );
+
+  /**
    * GET /api/v1/clients/:clientId/agents/jobs/:jobId
    *
    * Returns the current status of an agent job.
