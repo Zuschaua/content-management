@@ -3,6 +3,7 @@ import IORedis from "ioredis";
 import { processAnalyzeWebsiteJob } from "./jobs/analyze-website.js";
 import { processAnalyzeCompetitorsJob } from "./jobs/analyze-competitors.js";
 import { processTrackBlogJob } from "./jobs/track-blog.js";
+import { processSuggestArticlesJob } from "./jobs/suggest-articles.js";
 
 const redisUrl = process.env.REDIS_URL ?? "redis://localhost:6379";
 const connection = new IORedis(redisUrl, { maxRetriesPerRequest: null });
@@ -25,8 +26,11 @@ const agentWorker = new Worker(
         await processTrackBlogJob(job as Parameters<typeof processTrackBlogJob>[0]);
         break;
 
-      // Remaining agents (M7, M9, M12) — to be implemented
       case "suggest-articles":
+        await processSuggestArticlesJob(job as Parameters<typeof processSuggestArticlesJob>[0]);
+        break;
+
+      // Remaining agents (M9, M12) — to be implemented
       case "write-article":
       case "rewrite-section":
       case "generate-images":
