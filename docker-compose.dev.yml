@@ -1,0 +1,72 @@
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  minio:
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+  api:
+    build: !reset null
+    image: node:20-slim
+    working_dir: /app
+    command: ["npx", "tsx", "watch", "src/server.ts"]
+    volumes:
+      - ./apps/api:/app
+      - ./packages:/packages
+      - /app/node_modules
+    ports:
+      - "3001:3001"
+      - "9229:9229"
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgres://contentfactory:contentfactory@postgres:5432/contentfactory
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: content-factory
+      ENCRYPTION_KEY: dev-encryption-key-change-in-production
+      PORT: "3001"
+
+  worker:
+    build: !reset null
+    image: node:20-slim
+    working_dir: /app
+    command: ["npx", "tsx", "watch", "src/worker.ts"]
+    volumes:
+      - ./apps/api:/app
+      - ./packages:/packages
+      - /app/node_modules
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgres://contentfactory:contentfactory@postgres:5432/contentfactory
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: content-factory
+      ENCRYPTION_KEY: dev-encryption-key-change-in-production
+
+  web:
+    build: !reset null
+    image: node:20-slim
+    working_dir: /app
+    command: ["npx", "next", "dev", "--port", "3000"]
+    volumes:
+      - ./apps/web:/app
+      - ./packages:/packages
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: http://localhost:3001
