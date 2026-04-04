@@ -9,6 +9,7 @@ import { agentConfigRoutes } from "./routes/agent-configs.js";
 import { knowledgeBaseRoutes } from "./routes/knowledge-base.js";
 import { agentRoutes } from "./routes/agents.js";
 import { articleRoutes } from "./routes/articles.js";
+import { calendarRoutes } from "./routes/calendar.js";
 import authenticatePlugin from "./plugins/authenticate.js";
 import clientScopePlugin from "./plugins/client-scope.js";
 
@@ -36,6 +37,7 @@ await app.register(agentConfigRoutes, { prefix: "/api/v1/agent-configs" });
 await app.register(knowledgeBaseRoutes, { prefix: "/api/v1/clients" });
 await app.register(agentRoutes, { prefix: "/api/v1/clients" });
 await app.register(articleRoutes, { prefix: "/api/v1/clients" });
+await app.register(calendarRoutes, { prefix: "/api/v1/clients" });
 
 const port = parseInt(process.env.PORT ?? "3001", 10);
 const host = process.env.HOST ?? "0.0.0.0";
