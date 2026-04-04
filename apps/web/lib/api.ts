@@ -587,3 +587,22 @@ export async function deleteArticleSection(
     { method: "DELETE" }
   );
 }
+
+// --- Calendar API ---
+
+export async function getCalendar(
+  clientId: string,
+  month: string
+): Promise<{ articles: Article[]; month: string }> {
+  return apiFetch(`/api/v1/clients/${clientId}/calendar?month=${month}`);
+}
+
+export async function scheduleArticle(
+  clientId: string,
+  articleId: string,
+  scheduledDate: string | null
+): Promise<{ article: Article }> {
+  return updateArticle(clientId, articleId, {
+    scheduledDate: scheduledDate ?? undefined,
+  });
+}
