@@ -7,6 +7,48 @@ export type User = {
   role: "admin" | "editor" | "writer";
 };
 
+export type Client = {
+  id: string;
+  name: string;
+  websiteUrl: string;
+  niche?: string | null;
+  industry?: string | null;
+  contactInfo?: { email?: string; phone?: string; notes?: string } | null;
+  notes?: string | null;
+  active: boolean;
+  createdBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateClientInput = {
+  name: string;
+  websiteUrl: string;
+  niche?: string;
+  industry?: string;
+  contactInfo?: { email?: string; phone?: string; notes?: string };
+  notes?: string;
+};
+
+export function getActiveClientId(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("activeClientId");
+}
+
+export function setActiveClientId(clientId: string | null): void {
+  if (typeof window === "undefined") return;
+  if (clientId) {
+    localStorage.setItem("activeClientId", clientId);
+  } else {
+    localStorage.removeItem("activeClientId");
+  }
+}
+
+function clientHeaders(): Record<string, string> {
+  const clientId = getActiveClientId();
+  return clientId ? { "X-Client-Id": clientId } : {};
+}
+
 async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
@@ -16,6 +58,7 @@ async function apiFetch<T>(
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
+      ...clientHeaders(),
       ...options.headers,
     },
   });
@@ -90,4 +133,37 @@ export async function updateUser(
 
 export async function deleteUser(id: string): Promise<void> {
   await apiFetch(`/api/v1/users/${id}`, { method: "DELETE" });
+}
+
+// --- Client API ---
+
+export async function listClients(): Promise<{ clients: Client[] }> {
+  return apiFetch("/api/v1/clients");
+}
+
+export async function getClient(id: string): Promise<{ client: Client }> {
+  return apiFetch(`/api/v1/clients/${id}`);
+}
+
+export async function createClient(
+  data: CreateClientInput
+): Promise<{ client: Client }> {
+  return apiFetch("/api/v1/clients", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateClient(
+  id: string,
+  data: Partial<CreateClientInput>
+): Promise<{ client: Client }> {
+  return apiFetch(`/api/v1/clients/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function archiveClient(id: string): Promise<void> {
+  await apiFetch(`/api/v1/clients/${id}`, { method: "DELETE" });
 }

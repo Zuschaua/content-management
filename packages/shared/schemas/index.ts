@@ -15,7 +15,9 @@ export const createClientSchema = z.object({
   notes: z.string().optional(),
 });
 
-export const updateClientSchema = createClientSchema.partial();
+export const updateClientSchema = createClientSchema.partial().extend({
+  active: z.boolean().optional(),
+});
 
 export const registerSchema = z.object({
   email: z.string().email(),

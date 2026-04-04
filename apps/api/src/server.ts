@@ -6,6 +6,7 @@ import { authRoutes } from "./routes/auth.js";
 import { clientRoutes } from "./routes/clients.js";
 import { userRoutes } from "./routes/users.js";
 import authenticatePlugin from "./plugins/authenticate.js";
+import clientScopePlugin from "./plugins/client-scope.js";
 
 const app = Fastify({
   logger: {
@@ -20,6 +21,7 @@ await app.register(cors, {
 
 await app.register(cookie);
 await app.register(authenticatePlugin);
+await app.register(clientScopePlugin);
 
 // Routes
 await app.register(healthRoutes, { prefix: "/api/v1" });
