@@ -22,6 +22,17 @@ export interface KnowledgeBaseSection {
   content: string;
 }
 
+const websiteAnalyzerParamsSchema = z.object({
+  websiteUrl: z.string().url(),
+  crawledPages: z.array(
+    z.object({
+      url: z.string(),
+      title: z.string(),
+      content: z.string(),
+    })
+  ),
+});
+
 const kbSectionsSchema = z.object({
   nicheOverview: z.object({
     title: z.string().describe("Short descriptive title for this section"),
@@ -62,7 +73,11 @@ export class WebsiteAnalyzerAgent extends BaseAgent {
   }
 
   async execute(input: AgentInput): Promise<AgentOutput> {
-    const params = input.params as unknown as WebsiteAnalyzerParams;
+    const parsed = websiteAnalyzerParamsSchema.safeParse(input.params);
+    if (!parsed.success) {
+      return { success: false, error: `Invalid params: ${parsed.error.message}` };
+    }
+    const params = parsed.data;
     const { crawledPages } = params;
 
     if (crawledPages.length === 0) {
@@ -80,14 +95,23 @@ export class WebsiteAnalyzerAgent extends BaseAgent {
     const systemPrompt = this.config.systemPrompt || DEFAULT_SYSTEM_PROMPT;
     const temperature = this.config.temperature != null ? Number(this.config.temperature) : 0.3;
 
-    const { object, usage } = await generateObject({
-      model,
-      system: systemPrompt,
-      prompt: `Analyse the following crawled website content and extract structured knowledge base information.\n\nWebsite: ${params.websiteUrl}\n\n${crawledContent}`,
-      schema: kbSectionsSchema,
-      temperature,
-      ...(this.config.maxTokens ? { maxTokens: this.config.maxTokens } : {}),
-    });
+    let object: z.infer<typeof kbSectionsSchema>;
+    let usage: { totalTokens?: number } | undefined;
+    try {
+      const result = await generateObject({
+        model,
+        system: systemPrompt,
+        prompt: `Analyse the following crawled website content and extract structured knowledge base information.\n\nWebsite: ${params.websiteUrl}\n\n${crawledContent}`,
+        schema: kbSectionsSchema,
+        temperature,
+        ...(this.config.maxTokens ? { maxTokens: this.config.maxTokens } : {}),
+      });
+      object = result.object;
+      usage = result.usage;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { success: false, error: `LLM analysis failed: ${message}` };
+    }
 
     const sections: KnowledgeBaseSection[] = [
       {
