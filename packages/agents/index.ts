@@ -1,5 +1,9 @@
 import type { AgentType } from "@content-factory/shared";
 
+export { WebsiteAnalyzerAgent } from "./website-analyzer.js";
+export type { CrawledPage, WebsiteAnalyzerParams, KnowledgeBaseSection } from "./website-analyzer.js";
+export { createModelFromConfig } from "./create-model.js";
+
 export interface AgentInput {
   clientId: string;
   agentType: AgentType;

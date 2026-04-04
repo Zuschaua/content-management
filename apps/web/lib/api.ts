@@ -392,3 +392,198 @@ export async function revertKbSection(
     }
   );
 }
+
+// --- Article API ---
+
+export type ArticleStatus =
+  | "suggested"
+  | "approved"
+  | "writing"
+  | "written"
+  | "proofreading"
+  | "ready";
+
+export type ContentFormat =
+  | "how_to"
+  | "listicle"
+  | "deep_dive"
+  | "comparison"
+  | "general";
+
+export type SectionType = "intro" | "heading" | "subheading" | "conclusion";
+
+export type Article = {
+  id: string;
+  clientId: string;
+  title: string;
+  slug?: string | null;
+  status: ArticleStatus;
+  contentFormat?: ContentFormat | null;
+  targetKeywords?: string[] | null;
+  wordCountTarget?: number | null;
+  wordCountActual?: number | null;
+  metaDescription?: string | null;
+  outline?: Record<string, unknown> | null;
+  strategicRationale?: string | null;
+  body?: string | null;
+  scheduledDate?: string | null;
+  assignedModel?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ArticleSection = {
+  id: string;
+  articleId: string;
+  heading: string;
+  body: string;
+  sortOrder: number;
+  sectionType?: SectionType | null;
+  updatedAt: string;
+};
+
+export type ArticleVersion = {
+  id: string;
+  articleId: string;
+  version: number;
+  body: string;
+  changeSource: "human" | "agent";
+  changeNote?: string | null;
+  changedBy?: string | null;
+  createdAt: string;
+};
+
+export type CreateArticleInput = {
+  title: string;
+  contentFormat?: ContentFormat;
+  targetKeywords?: string[];
+  wordCountTarget?: number;
+  metaDescription?: string;
+  outline?: Record<string, unknown>;
+  strategicRationale?: string;
+  scheduledDate?: string;
+};
+
+export type UpdateArticleInput = Partial<
+  CreateArticleInput & {
+    slug: string;
+    body: string;
+    wordCountActual: number;
+    assignedModel: string;
+  }
+>;
+
+export async function listArticles(
+  clientId: string,
+  status?: ArticleStatus
+): Promise<{ articles: Article[] }> {
+  const qs = status ? `?status=${status}` : "";
+  return apiFetch(`/api/v1/clients/${clientId}/articles${qs}`);
+}
+
+export async function getArticle(
+  clientId: string,
+  articleId: string
+): Promise<{ article: Article; sections: ArticleSection[] }> {
+  return apiFetch(`/api/v1/clients/${clientId}/articles/${articleId}`);
+}
+
+export async function createArticle(
+  clientId: string,
+  data: CreateArticleInput
+): Promise<{ article: Article }> {
+  return apiFetch(`/api/v1/clients/${clientId}/articles`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateArticle(
+  clientId: string,
+  articleId: string,
+  data: UpdateArticleInput
+): Promise<{ article: Article }> {
+  return apiFetch(`/api/v1/clients/${clientId}/articles/${articleId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteArticle(
+  clientId: string,
+  articleId: string
+): Promise<void> {
+  await apiFetch(`/api/v1/clients/${clientId}/articles/${articleId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function transitionArticle(
+  clientId: string,
+  articleId: string,
+  status: ArticleStatus
+): Promise<{ article: Article }> {
+  return apiFetch(
+    `/api/v1/clients/${clientId}/articles/${articleId}/transition`,
+    {
+      method: "POST",
+      body: JSON.stringify({ status }),
+    }
+  );
+}
+
+export async function listArticleVersions(
+  clientId: string,
+  articleId: string
+): Promise<{ versions: ArticleVersion[] }> {
+  return apiFetch(
+    `/api/v1/clients/${clientId}/articles/${articleId}/versions`
+  );
+}
+
+export async function createArticleSection(
+  clientId: string,
+  articleId: string,
+  data: {
+    heading: string;
+    body: string;
+    sortOrder: number;
+    sectionType?: SectionType;
+  }
+): Promise<{ section: ArticleSection }> {
+  return apiFetch(`/api/v1/clients/${clientId}/articles/${articleId}/sections`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateArticleSection(
+  clientId: string,
+  articleId: string,
+  sectionId: string,
+  data: Partial<{
+    heading: string;
+    body: string;
+    sortOrder: number;
+    sectionType: SectionType;
+  }>
+): Promise<{ section: ArticleSection }> {
+  return apiFetch(
+    `/api/v1/clients/${clientId}/articles/${articleId}/sections/${sectionId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }
+  );
+}
+
+export async function deleteArticleSection(
+  clientId: string,
+  articleId: string,
+  sectionId: string
+): Promise<void> {
+  await apiFetch(
+    `/api/v1/clients/${clientId}/articles/${articleId}/sections/${sectionId}`,
+    { method: "DELETE" }
+  );
+}

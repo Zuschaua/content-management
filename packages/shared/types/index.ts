@@ -118,3 +118,26 @@ export interface KbVersion {
   changeSource: ChangeSource;
   createdAt: string;
 }
+
+export type SectionType = "intro" | "heading" | "subheading" | "conclusion";
+
+export interface ArticleSection {
+  id: string;
+  articleId: string;
+  heading: string;
+  body: string;
+  sortOrder: number;
+  sectionType?: SectionType | null;
+  updatedAt: string;
+}
+
+export interface ArticleVersion {
+  id: string;
+  articleId: string;
+  version: number;
+  body: string;
+  changeSource: ChangeSource;
+  changeNote?: string | null;
+  changedBy?: string | null;
+  createdAt: string;
+}
