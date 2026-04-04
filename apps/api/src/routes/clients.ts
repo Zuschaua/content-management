@@ -1,28 +1,178 @@
 import type { FastifyInstance } from "fastify";
+import { eq, desc } from "drizzle-orm";
+import { db } from "../db/index.js";
+import { clients } from "../db/schema.js";
+import { requireAuth, requireRole } from "../plugins/authenticate.js";
+import { createClientSchema, updateClientSchema } from "@content-factory/shared";
 
 export async function clientRoutes(app: FastifyInstance) {
-  app.get("/", async () => {
-    // TODO: List clients
-    return [];
-  });
+  // List all clients — authenticated users see active clients; admins see all
+  app.get(
+    "/",
+    { preHandler: [requireAuth] },
+    async (request, reply) => {
+      const isAdmin = request.user!.role === "admin";
+      const rows = await db
+        .select({
+          id: clients.id,
+          name: clients.name,
+          websiteUrl: clients.websiteUrl,
+          niche: clients.niche,
+          industry: clients.industry,
+          contactInfo: clients.contactInfo,
+          notes: clients.notes,
+          active: clients.active,
+          createdBy: clients.createdBy,
+          createdAt: clients.createdAt,
+          updatedAt: clients.updatedAt,
+        })
+        .from(clients)
+        .where(isAdmin ? undefined : eq(clients.active, true))
+        .orderBy(desc(clients.createdAt));
 
-  app.post("/", async (request, reply) => {
-    // TODO: Create client
-    return reply.status(501).send({ error: "Not implemented" });
-  });
+      return reply.send({ clients: rows });
+    }
+  );
 
-  app.get("/:id", async (request, reply) => {
-    // TODO: Get client by ID
-    return reply.status(501).send({ error: "Not implemented" });
-  });
+  // Create client — admin only
+  app.post(
+    "/",
+    { preHandler: [requireAuth, requireRole("admin")] },
+    async (request, reply) => {
+      const parsed = createClientSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: parsed.error.flatten() });
+      }
 
-  app.patch("/:id", async (request, reply) => {
-    // TODO: Update client
-    return reply.status(501).send({ error: "Not implemented" });
-  });
+      const { name, websiteUrl, niche, industry, contactInfo, notes } = parsed.data;
 
-  app.delete("/:id", async (request, reply) => {
-    // TODO: Delete client
-    return reply.status(501).send({ error: "Not implemented" });
-  });
+      const [client] = await db
+        .insert(clients)
+        .values({
+          name,
+          websiteUrl,
+          niche,
+          industry,
+          contactInfo,
+          notes,
+          createdBy: request.user!.userId,
+        })
+        .returning({
+          id: clients.id,
+          name: clients.name,
+          websiteUrl: clients.websiteUrl,
+          niche: clients.niche,
+          industry: clients.industry,
+          contactInfo: clients.contactInfo,
+          notes: clients.notes,
+          active: clients.active,
+          createdBy: clients.createdBy,
+          createdAt: clients.createdAt,
+          updatedAt: clients.updatedAt,
+        });
+
+      return reply.status(201).send({ client });
+    }
+  );
+
+  // Get single client — authenticated
+  app.get(
+    "/:id",
+    { preHandler: [requireAuth] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+
+      const [client] = await db
+        .select({
+          id: clients.id,
+          name: clients.name,
+          websiteUrl: clients.websiteUrl,
+          niche: clients.niche,
+          industry: clients.industry,
+          contactInfo: clients.contactInfo,
+          notes: clients.notes,
+          active: clients.active,
+          createdBy: clients.createdBy,
+          createdAt: clients.createdAt,
+          updatedAt: clients.updatedAt,
+        })
+        .from(clients)
+        .where(eq(clients.id, id))
+        .limit(1);
+
+      if (!client) {
+        return reply.status(404).send({ error: "Client not found" });
+      }
+
+      return reply.send({ client });
+    }
+  );
+
+  // Update client — admin only
+  app.patch(
+    "/:id",
+    { preHandler: [requireAuth, requireRole("admin")] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+
+      const parsed = updateClientSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: parsed.error.flatten() });
+      }
+
+      const updates: Record<string, unknown> = { updatedAt: new Date() };
+      const { name, websiteUrl, niche, industry, contactInfo, notes } = parsed.data;
+      if (name !== undefined) updates.name = name;
+      if (websiteUrl !== undefined) updates.websiteUrl = websiteUrl;
+      if (niche !== undefined) updates.niche = niche;
+      if (industry !== undefined) updates.industry = industry;
+      if (contactInfo !== undefined) updates.contactInfo = contactInfo;
+      if (notes !== undefined) updates.notes = notes;
+
+      const [client] = await db
+        .update(clients)
+        .set(updates)
+        .where(eq(clients.id, id))
+        .returning({
+          id: clients.id,
+          name: clients.name,
+          websiteUrl: clients.websiteUrl,
+          niche: clients.niche,
+          industry: clients.industry,
+          contactInfo: clients.contactInfo,
+          notes: clients.notes,
+          active: clients.active,
+          createdBy: clients.createdBy,
+          createdAt: clients.createdAt,
+          updatedAt: clients.updatedAt,
+        });
+
+      if (!client) {
+        return reply.status(404).send({ error: "Client not found" });
+      }
+
+      return reply.send({ client });
+    }
+  );
+
+  // Archive client (soft delete) — admin only
+  app.delete(
+    "/:id",
+    { preHandler: [requireAuth, requireRole("admin")] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+
+      const [client] = await db
+        .update(clients)
+        .set({ active: false, updatedAt: new Date() })
+        .where(eq(clients.id, id))
+        .returning({ id: clients.id });
+
+      if (!client) {
+        return reply.status(404).send({ error: "Client not found" });
+      }
+
+      return reply.status(204).send();
+    }
+  );
 }

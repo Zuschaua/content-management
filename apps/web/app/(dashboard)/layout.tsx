@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { ClientSelector } from "../../components/client-selector";
 
 const API_BASE = process.env.API_URL ?? "http://localhost:3001";
 
@@ -36,6 +37,7 @@ export default async function DashboardLayout({
         <div className="px-4 py-5 border-b border-gray-200">
           <span className="font-bold text-gray-900">Content Factory</span>
         </div>
+        <ClientSelector />
         <nav className="flex-1 px-2 py-4 space-y-1">
           <NavItem href="/dashboard" label="Dashboard" />
           <NavItem href="/clients" label="Clients" />

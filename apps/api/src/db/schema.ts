@@ -117,6 +117,7 @@ export const clients = pgTable("clients", {
   industry: varchar("industry", { length: 255 }),
   contactInfo: jsonb("contact_info"),
   notes: text("notes"),
+  active: boolean("active").notNull().default(true),
   createdBy: uuid("created_by").references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
