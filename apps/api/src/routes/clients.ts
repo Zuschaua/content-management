@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { eq, desc } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { clients } from "../db/schema.js";
 import { requireAuth, requireRole } from "../plugins/authenticate.js";
@@ -75,12 +75,17 @@ export async function clientRoutes(app: FastifyInstance) {
     }
   );
 
-  // Get single client — authenticated
+  // Get single client — authenticated; non-admins can only see active clients
   app.get(
     "/:id",
     { preHandler: [requireAuth] },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+      const isAdmin = request.user!.role === "admin";
+
+      const conditions = isAdmin
+        ? eq(clients.id, id)
+        : and(eq(clients.id, id), eq(clients.active, true));
 
       const [client] = await db
         .select({
@@ -97,7 +102,7 @@ export async function clientRoutes(app: FastifyInstance) {
           updatedAt: clients.updatedAt,
         })
         .from(clients)
-        .where(eq(clients.id, id))
+        .where(conditions)
         .limit(1);
 
       if (!client) {
@@ -121,13 +126,14 @@ export async function clientRoutes(app: FastifyInstance) {
       }
 
       const updates: Record<string, unknown> = { updatedAt: new Date() };
-      const { name, websiteUrl, niche, industry, contactInfo, notes } = parsed.data;
+      const { name, websiteUrl, niche, industry, contactInfo, notes, active } = parsed.data;
       if (name !== undefined) updates.name = name;
       if (websiteUrl !== undefined) updates.websiteUrl = websiteUrl;
       if (niche !== undefined) updates.niche = niche;
       if (industry !== undefined) updates.industry = industry;
       if (contactInfo !== undefined) updates.contactInfo = contactInfo;
       if (notes !== undefined) updates.notes = notes;
+      if (active !== undefined) updates.active = active;
 
       const [client] = await db
         .update(clients)
@@ -162,13 +168,13 @@ export async function clientRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { id } = request.params as { id: string };
 
-      const [client] = await db
+      const rows = await db
         .update(clients)
         .set({ active: false, updatedAt: new Date() })
         .where(eq(clients.id, id))
         .returning({ id: clients.id });
 
-      if (!client) {
+      if (rows.length === 0) {
         return reply.status(404).send({ error: "Client not found" });
       }
 
