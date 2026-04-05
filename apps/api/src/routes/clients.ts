@@ -98,8 +98,8 @@ export async function clientRoutes(app: FastifyInstance) {
               backoff: { type: "exponential", delay: 5000 },
             }
           );
-        } catch {
-          // Non-fatal: client was created, KB analysis will need manual trigger
+        } catch (err) {
+          request.log.error({ err, clientId: client.id }, "Auto-trigger website analysis failed — KB will need manual trigger");
         }
       }
 

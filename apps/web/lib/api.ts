@@ -650,6 +650,7 @@ export async function triggerAnalyzeWebsite(
 ): Promise<{ agentJobId: string; message: string }> {
   return apiFetch(`/api/v1/clients/${clientId}/agents/analyze-website`, {
     method: "POST",
+    body: JSON.stringify({}),
   });
 }
 
