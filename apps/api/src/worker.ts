@@ -4,6 +4,8 @@ import { processAnalyzeWebsiteJob } from "./jobs/analyze-website.js";
 import { processAnalyzeCompetitorsJob } from "./jobs/analyze-competitors.js";
 import { processTrackBlogJob } from "./jobs/track-blog.js";
 import { processSuggestArticlesJob } from "./jobs/suggest-articles.js";
+import { processWriteArticleJob } from "./jobs/write-article.js";
+import { processRewriteSectionJob } from "./jobs/rewrite-section.js";
 
 const redisUrl = process.env.REDIS_URL ?? "redis://localhost:6379";
 const connection = new IORedis(redisUrl, { maxRetriesPerRequest: null });
@@ -30,9 +32,15 @@ const agentWorker = new Worker(
         await processSuggestArticlesJob(job as Parameters<typeof processSuggestArticlesJob>[0]);
         break;
 
-      // Remaining agents (M9, M12) — to be implemented
       case "write-article":
+        await processWriteArticleJob(job as Parameters<typeof processWriteArticleJob>[0]);
+        break;
+
       case "rewrite-section":
+        await processRewriteSectionJob(job as Parameters<typeof processRewriteSectionJob>[0]);
+        break;
+
+      // Remaining agents (M12) — to be implemented
       case "generate-images":
         console.log(`Agent job type: ${job.name} — not yet implemented`);
         break;
