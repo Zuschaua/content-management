@@ -78,8 +78,8 @@ export async function agentRoutes(app: FastifyInstance) {
         { agentJobId: agentJob.id, clientId },
         {
           jobId: agentJob.id, // Use DB id as BullMQ job id for easy correlation
-          attempts: 2,
-          backoff: { type: "fixed", delay: 5000 },
+          attempts: 3,
+          backoff: { type: "exponential", delay: 5000 },
         }
       );
 
@@ -142,8 +142,8 @@ export async function agentRoutes(app: FastifyInstance) {
         { agentJobId: agentJob.id, clientId },
         {
           jobId: agentJob.id,
-          attempts: 2,
-          backoff: { type: "fixed", delay: 5000 },
+          attempts: 3,
+          backoff: { type: "exponential", delay: 5000 },
         }
       );
 
@@ -213,8 +213,8 @@ export async function agentRoutes(app: FastifyInstance) {
         { agentJobId: agentJob.id, clientId, count, preferences },
         {
           jobId: agentJob.id,
-          attempts: 2,
-          backoff: { type: "fixed", delay: 5000 },
+          attempts: 3,
+          backoff: { type: "exponential", delay: 5000 },
         }
       );
 
@@ -607,6 +607,147 @@ export async function agentRoutes(app: FastifyInstance) {
 
       // Start polling
       await poll();
+    }
+  );
+
+  /**
+   * POST /api/v1/clients/:clientId/agents/jobs/:jobId/retry
+   *
+   * Manually retries a failed job. Creates a new BullMQ job with the same parameters.
+   * Only works on jobs in "failed" status. Enforces clientId scope.
+   */
+  app.post<{ Params: { clientId: string; jobId: string } }>(
+    "/:clientId/agents/jobs/:jobId/retry",
+    { preHandler: [requireAuth] },
+    async (request, reply) => {
+      const paramsParsed = jobParamsSchema.safeParse(request.params);
+      if (!paramsParsed.success) {
+        return reply.status(400).send({ error: paramsParsed.error.errors[0]?.message ?? "Invalid params" });
+      }
+      const { clientId, jobId } = paramsParsed.data;
+
+      const rows = await db
+        .select()
+        .from(agentJobs)
+        .where(eq(agentJobs.id, jobId))
+        .limit(1);
+
+      if (rows.length === 0) {
+        return reply.status(404).send({ error: "Job not found" });
+      }
+
+      const job = rows[0];
+      if (job.clientId !== clientId) {
+        return reply.status(404).send({ error: "Job not found" });
+      }
+
+      if (job.status !== "failed") {
+        return reply.status(409).send({ error: `Cannot retry job in "${job.status}" status — only failed jobs can be retried` });
+      }
+
+      // Create a new job record for the retry
+      const [retryJob] = await db
+        .insert(agentJobs)
+        .values({
+          clientId: job.clientId,
+          agentType: job.agentType,
+          jobType: job.jobType,
+          referenceId: job.referenceId,
+          referenceType: job.referenceType,
+          status: "queued",
+          progress: 0,
+          inputData: job.inputData,
+        })
+        .returning({ id: agentJobs.id });
+
+      // Build job data from original input
+      const retryJobData: Record<string, unknown> = {
+        agentJobId: retryJob.id,
+        clientId: job.clientId,
+      };
+      // Carry forward extra fields from the original inputData
+      const input = job.inputData as Record<string, unknown> | null;
+      if (input?.count !== undefined) retryJobData.count = input.count;
+      if (input?.preferences !== undefined) retryJobData.preferences = input.preferences;
+
+      await getQueue().add(
+        job.jobType,
+        retryJobData,
+        {
+          jobId: retryJob.id,
+          attempts: 3,
+          backoff: { type: "exponential", delay: 5000 },
+        }
+      );
+
+      return reply.status(202).send({
+        agentJobId: retryJob.id,
+        originalJobId: jobId,
+        message: "Job retry queued",
+      });
+    }
+  );
+
+  /**
+   * POST /api/v1/clients/:clientId/agents/jobs/:jobId/cancel
+   *
+   * Cancels a queued or running job. Removes the BullMQ job and updates the DB record.
+   * Enforces clientId scope.
+   */
+  app.post<{ Params: { clientId: string; jobId: string } }>(
+    "/:clientId/agents/jobs/:jobId/cancel",
+    { preHandler: [requireAuth] },
+    async (request, reply) => {
+      const paramsParsed = jobParamsSchema.safeParse(request.params);
+      if (!paramsParsed.success) {
+        return reply.status(400).send({ error: paramsParsed.error.errors[0]?.message ?? "Invalid params" });
+      }
+      const { clientId, jobId } = paramsParsed.data;
+
+      const rows = await db
+        .select()
+        .from(agentJobs)
+        .where(eq(agentJobs.id, jobId))
+        .limit(1);
+
+      if (rows.length === 0) {
+        return reply.status(404).send({ error: "Job not found" });
+      }
+
+      const job = rows[0];
+      if (job.clientId !== clientId) {
+        return reply.status(404).send({ error: "Job not found" });
+      }
+
+      const cancellableStatuses = new Set(["queued", "running"]);
+      if (!job.status || !cancellableStatuses.has(job.status)) {
+        return reply.status(409).send({ error: `Cannot cancel job in "${job.status}" status` });
+      }
+
+      // D3 fix: update DB to cancelled FIRST to win any race with the
+      // worker's failed handler (which now skips if status is already cancelled)
+      await db
+        .update(agentJobs)
+        .set({
+          status: "cancelled",
+          errorMessage: "Cancelled by user",
+          completedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(agentJobs.id, jobId));
+
+      // Then remove/fail the BullMQ job
+      const bullJob = await getQueue().getJob(jobId);
+      if (bullJob) {
+        const state = await bullJob.getState();
+        if (state === "waiting" || state === "delayed") {
+          await bullJob.remove();
+        } else if (state === "active") {
+          await bullJob.moveToFailed(new Error("Cancelled by user"), "0", true);
+        }
+      }
+
+      return reply.send({ message: "Job cancelled", jobId });
     }
   );
 }
