@@ -64,6 +64,7 @@ services:
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set}
       MINIO_BUCKET: ${MINIO_BUCKET:-content-factory}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
       PORT: "3001"
     depends_on:
       postgres:
@@ -99,6 +100,8 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
     restart: unless-stopped
     ports:
       - "${WEB_PORT:-3000}:3000"
