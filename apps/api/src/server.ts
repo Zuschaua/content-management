@@ -15,6 +15,7 @@ import { articleRoutes } from "./routes/articles.js";
 import { calendarRoutes } from "./routes/calendar.js";
 import { competitorRoutes } from "./routes/competitors.js";
 import { uploadRoutes } from "./routes/uploads.js";
+import { dashboardRoutes } from "./routes/dashboard.js";
 import authenticatePlugin from "./plugins/authenticate.js";
 import clientScopePlugin from "./plugins/client-scope.js";
 
@@ -60,6 +61,7 @@ await app.register(articleRoutes, { prefix: "/api/v1/clients" });
 await app.register(calendarRoutes, { prefix: "/api/v1/clients" });
 await app.register(competitorRoutes, { prefix: "/api/v1/clients" });
 await app.register(uploadRoutes, { prefix: "/api/v1/clients" });
+await app.register(dashboardRoutes, { prefix: "/api/v1/dashboard" });
 
 const port = parseInt(process.env.PORT ?? "3001", 10);
 const host = process.env.HOST ?? "0.0.0.0";

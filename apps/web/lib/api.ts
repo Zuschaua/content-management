@@ -680,6 +680,18 @@ export async function getCalendar(
   return apiFetch(`/api/v1/clients/${clientId}/calendar?month=${month}`);
 }
 
+// --- Dashboard API ---
+
+export type DashboardStats = {
+  activeClients: number;
+  articlesInProgress: number;
+  readyToExport: number;
+};
+
+export async function getDashboardStats(): Promise<DashboardStats> {
+  return apiFetch("/api/v1/dashboard/stats");
+}
+
 export async function scheduleArticle(
   clientId: string,
   articleId: string,
