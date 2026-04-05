@@ -8,6 +8,13 @@
       "when": 1775328058546,
       "tag": "0000_aspiring_daimon_hellstrom",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1775382948002,
+      "tag": "0001_demonic_dreadnoughts",
+      "breakpoints": true
     }
   ]
 }

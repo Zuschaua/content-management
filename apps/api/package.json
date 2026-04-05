@@ -21,6 +21,7 @@
     "@content-factory/shared": "workspace:*",
     "@fastify/cookie": "^11.0.0",
     "@fastify/cors": "^11.0.0",
+    "@fastify/multipart": "^9.4.0",
     "@fastify/rate-limit": "^10.3.0",
     "argon2": "^0.43.0",
     "bullmq": "^5.0.0",

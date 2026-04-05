@@ -2,6 +2,7 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import rateLimit from "@fastify/rate-limit";
+import multipart from "@fastify/multipart";
 import { healthRoutes } from "./routes/health.js";
 import { authRoutes } from "./routes/auth.js";
 import { clientRoutes } from "./routes/clients.js";
@@ -12,6 +13,7 @@ import { agentRoutes } from "./routes/agents.js";
 import { articleRoutes } from "./routes/articles.js";
 import { calendarRoutes } from "./routes/calendar.js";
 import { competitorRoutes } from "./routes/competitors.js";
+import { uploadRoutes } from "./routes/uploads.js";
 import authenticatePlugin from "./plugins/authenticate.js";
 import clientScopePlugin from "./plugins/client-scope.js";
 
@@ -28,6 +30,9 @@ await app.register(cors, {
 
 await app.register(cookie);
 await app.register(rateLimit, { global: false });
+await app.register(multipart, {
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+});
 await app.register(authenticatePlugin);
 await app.register(clientScopePlugin);
 
@@ -42,6 +47,7 @@ await app.register(agentRoutes, { prefix: "/api/v1/clients" });
 await app.register(articleRoutes, { prefix: "/api/v1/clients" });
 await app.register(calendarRoutes, { prefix: "/api/v1/clients" });
 await app.register(competitorRoutes, { prefix: "/api/v1/clients" });
+await app.register(uploadRoutes, { prefix: "/api/v1/clients" });
 
 const port = parseInt(process.env.PORT ?? "3001", 10);
 const host = process.env.HOST ?? "0.0.0.0";
