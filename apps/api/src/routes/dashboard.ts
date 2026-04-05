@@ -8,6 +8,7 @@ import {
   knowledgeBaseSections,
 } from "../db/schema.js";
 import { requireAuth } from "../plugins/authenticate.js";
+import { articleStatusValues } from "@content-factory/shared";
 import type {
   DashboardStatsResponse,
   PipelineStats,
@@ -15,6 +16,9 @@ import type {
   JobStatus,
   ClientOverview,
 } from "@content-factory/shared";
+
+/** Minimum KB sections for a client's knowledge base to be considered complete */
+const KB_COMPLETE_THRESHOLD = 3;
 
 export async function dashboardRoutes(app: FastifyInstance) {
   app.get(
@@ -37,19 +41,13 @@ export async function dashboardRoutes(app: FastifyInstance) {
         .where(statusFilter)
         .groupBy(articles.status);
 
-      const pipeline: PipelineStats = {
-        suggested: 0,
-        approved: 0,
-        writing: 0,
-        written: 0,
-        proofreading: 0,
-        ready: 0,
-        total: 0,
-      };
+      const pipeline = Object.fromEntries([
+        ...articleStatusValues.map((s) => [s, 0]),
+        ["total", 0],
+      ]) as PipelineStats;
       for (const row of pipelineRows) {
         if (row.status && row.status in pipeline) {
-          pipeline[row.status as keyof Omit<PipelineStats, "total">] =
-            row.count;
+          (pipeline as Record<string, number>)[row.status] = row.count;
         }
         pipeline.total += row.count;
       }
@@ -95,10 +93,14 @@ export async function dashboardRoutes(app: FastifyInstance) {
           jobStatus.completedToday = row.count;
       }
 
-      // --- Query 4: Recent activity (last 20 events from agent_jobs) ---
+      // --- Query 4: Recent activity (last 20 events from agent_jobs, 7-day window) ---
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       const activityFilter = clientId
-        ? eq(agentJobs.clientId, clientId)
-        : undefined;
+        ? and(
+            gte(agentJobs.updatedAt, sevenDaysAgo),
+            eq(agentJobs.clientId, clientId)
+          )
+        : gte(agentJobs.updatedAt, sevenDaysAgo);
 
       const recentJobs = await db
         .select({
@@ -140,10 +142,13 @@ export async function dashboardRoutes(app: FastifyInstance) {
           timestamp: (j.completedAt ?? j.createdAt)?.toISOString() ?? "",
         }));
 
-      // Also include recently created articles
+      // Also include recently created articles (7-day window)
       const recentArticleFilter = clientId
-        ? eq(articles.clientId, clientId)
-        : undefined;
+        ? and(
+            gte(articles.createdAt, sevenDaysAgo),
+            eq(articles.clientId, clientId)
+          )
+        : gte(articles.createdAt, sevenDaysAgo);
 
       const recentArticles = await db
         .select({
@@ -157,18 +162,17 @@ export async function dashboardRoutes(app: FastifyInstance) {
         .orderBy(desc(articles.createdAt))
         .limit(10);
 
-      // Fill client names for articles
-      const articleClientIds = [
+      // Fill client names for articles (batch query, not per-client)
+      const missingClientIds = [
         ...new Set(recentArticles.map((a) => a.clientId)),
-      ];
-      for (const cId of articleClientIds) {
-        if (!clientNameMap.has(cId)) {
-          const [c] = await db
-            .select({ id: clients.id, name: clients.name })
-            .from(clients)
-            .where(eq(clients.id, cId))
-            .limit(1);
-          if (c) clientNameMap.set(c.id, c.name);
+      ].filter((cId) => !clientNameMap.has(cId));
+      if (missingClientIds.length > 0) {
+        const missingClients = await db
+          .select({ id: clients.id, name: clients.name })
+          .from(clients)
+          .where(sql`${clients.id} = ANY(${missingClientIds})`);
+        for (const c of missingClients) {
+          clientNameMap.set(c.id, c.name);
         }
       }
 
@@ -234,7 +238,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
             articleCount: row.articleCount,
             readyCount: Number(row.readyCount),
             inProgressCount: Number(row.inProgressCount),
-            kbComplete: (kbCountMap.get(row.id) ?? 0) >= 3,
+            kbComplete: (kbCountMap.get(row.id) ?? 0) >= KB_COMPLETE_THRESHOLD,
             lastActivityAt: row.lastActivityAt?.toISOString() ?? null,
           });
         }

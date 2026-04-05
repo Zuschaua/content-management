@@ -1,14 +1,6 @@
 import type { ArticleStatus } from "./index.js";
 
-export interface PipelineStats {
-  suggested: number;
-  approved: number;
-  writing: number;
-  written: number;
-  proofreading: number;
-  ready: number;
-  total: number;
-}
+export type PipelineStats = Record<ArticleStatus, number> & { total: number };
 
 export interface ActivityEvent {
   type:
