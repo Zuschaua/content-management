@@ -1,0 +1,30 @@
+name: Promote QA test users to admin (temp)
+
+on:
+  workflow_dispatch:
+    inputs:
+      pattern:
+        description: "Email pattern (SQL LIKE) to promote"
+        required: true
+        type: string
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Promote QA users to admin on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /opt/content-factory
+            RESULT=$(docker compose exec -T postgres psql -U contentfactory -d contentfactory -c \
+              "UPDATE users SET role = 'admin' WHERE email ILIKE '${{ github.event.inputs.pattern }}' RETURNING id, email, role;")
+            echo "$RESULT"
+            if echo "$RESULT" | grep -q "0 rows"; then
+              echo "ERROR: No user found matching pattern ${{ github.event.inputs.pattern }}"
+              exit 1
+            fi
+            echo "SUCCESS: Users promoted to admin"
