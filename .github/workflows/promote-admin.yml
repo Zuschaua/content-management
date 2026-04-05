@@ -1,0 +1,30 @@
+name: Promote user to admin
+
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: "Email address to promote to admin"
+        required: true
+        type: string
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Promote user to admin on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /opt/content-factory
+            RESULT=$(docker compose exec -T postgres psql -U contentfactory -d contentfactory -c \
+              "UPDATE users SET role = 'admin' WHERE email = '${{ github.event.inputs.email }}' RETURNING id, email, role;")
+            echo "$RESULT"
+            if echo "$RESULT" | grep -q "0 rows"; then
+              echo "ERROR: No user found with email ${{ github.event.inputs.email }}"
+              exit 1
+            fi
+            echo "SUCCESS: User promoted to admin"
