@@ -3,10 +3,11 @@
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { login } from "../../../lib/api";
+import { register } from "../../../lib/api";
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const router = useRouter();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -18,11 +19,11 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await login(email, password);
+      await register(email, password, name);
       router.push("/dashboard");
     } catch (err: any) {
-      const msg = err?.body?.error ?? "Login failed. Please try again.";
-      setError(msg);
+      const msg = err?.body?.error ?? "Registration failed. Please try again.";
+      setError(typeof msg === "string" ? msg : "Registration failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -30,9 +31,27 @@ export default function LoginPage() {
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-      <h2 className="text-xl font-semibold text-gray-900 mb-6">Sign in</h2>
+      <h2 className="text-xl font-semibold text-gray-900 mb-6">Create account</h2>
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label
+            htmlFor="name"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            Name
+          </label>
+          <input
+            id="name"
+            type="text"
+            required
+            autoComplete="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+
         <div>
           <label
             htmlFor="email"
@@ -62,7 +81,8 @@ export default function LoginPage() {
             id="password"
             type="password"
             required
-            autoComplete="current-password"
+            autoComplete="new-password"
+            minLength={8}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -80,14 +100,14 @@ export default function LoginPage() {
           disabled={loading}
           className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {loading ? "Signing in…" : "Sign in"}
+          {loading ? "Creating account…" : "Create account"}
         </button>
       </form>
 
       <p className="mt-4 text-center text-sm text-gray-500">
-        No account yet?{" "}
-        <Link href="/register" className="text-blue-600 hover:underline">
-          Create one
+        Already have an account?{" "}
+        <Link href="/login" className="text-blue-600 hover:underline">
+          Sign in
         </Link>
       </p>
     </div>
