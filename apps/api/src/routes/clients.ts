@@ -88,7 +88,7 @@ export async function clientRoutes(app: FastifyInstance) {
             })
             .returning({ id: agentJobs.id });
 
-          const jobData = { agentJobId: agentJob.id, clientId: client.id };
+          const jobData = { agentJobId: agentJob.id, clientId: client.id, autoSuggest: true };
           await getQueue().add(
             "analyze-website",
             { ...jobData, _sig: signJobPayload(jobData) },

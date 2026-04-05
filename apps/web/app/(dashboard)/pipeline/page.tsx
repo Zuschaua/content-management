@@ -23,6 +23,7 @@ import {
   createArticle,
   transitionArticle,
   deleteArticle,
+  triggerWriteArticle,
   getActiveClientId,
   type Article,
   type ArticleStatus,
@@ -71,9 +72,13 @@ function formatLabel(s: string) {
 function ArticleCard({
   article,
   onDelete,
+  onWrite,
+  isWriting,
 }: {
   article: Article;
   onDelete: (id: string) => void;
+  onWrite?: (id: string) => void;
+  isWriting?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: article.id });
@@ -139,6 +144,21 @@ function ArticleCard({
             : `${article.wordCountTarget} words target`}
         </p>
       )}
+      {article.status === "approved" && onWrite && (
+        <div className="mt-2">
+          <button
+            disabled={isWriting}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onWrite(article.id);
+            }}
+            className="w-full rounded bg-blue-600 px-2 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60 transition-colors"
+          >
+            {isWriting ? "Starting…" : "Write with AI"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -160,12 +180,16 @@ function Column({
   color,
   articles,
   onDelete,
+  onWrite,
+  writingArticles,
 }: {
   status: ArticleStatus;
   label: string;
   color: string;
   articles: Article[];
   onDelete: (id: string) => void;
+  onWrite: (id: string) => void;
+  writingArticles: Set<string>;
 }) {
   return (
     <div className={`flex flex-col rounded-xl border border-gray-200 ${color} min-h-[200px] w-52 shrink-0`}>
@@ -183,7 +207,13 @@ function Column({
       >
         <div className="flex flex-col gap-2 p-2 flex-1">
           {articles.map((article) => (
-            <ArticleCard key={article.id} article={article} onDelete={onDelete} />
+            <ArticleCard
+              key={article.id}
+              article={article}
+              onDelete={onDelete}
+              onWrite={status === "approved" ? onWrite : undefined}
+              isWriting={writingArticles.has(article.id)}
+            />
           ))}
         </div>
       </SortableContext>
@@ -198,6 +228,7 @@ export default function PipelinePage() {
   const [clientId, setClientId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [activeArticle, setActiveArticle] = useState<Article | null>(null);
+  const [writingArticles, setWritingArticles] = useState<Set<string>>(new Set());
   const [form, setForm] = useState({
     title: "",
     contentFormat: "" as ContentFormat | "",
@@ -304,6 +335,27 @@ export default function PipelinePage() {
     } catch (err: unknown) {
       const e = err as { body?: { error?: string } };
       setError(e?.body?.error ?? "Failed to create article");
+    }
+  }
+
+  async function handleWrite(articleId: string) {
+    if (!clientId) return;
+    setWritingArticles((prev) => new Set(prev).add(articleId));
+    try {
+      await triggerWriteArticle(clientId, articleId);
+      // Optimistically move article to "writing" status
+      setArticles((prev) =>
+        prev.map((a) => (a.id === articleId ? { ...a, status: "writing" as ArticleStatus } : a))
+      );
+    } catch (err: unknown) {
+      const e = err as { body?: { error?: string } };
+      setError(e?.body?.error ?? "Failed to start writing — ensure the article has outline sections");
+    } finally {
+      setWritingArticles((prev) => {
+        const next = new Set(prev);
+        next.delete(articleId);
+        return next;
+      });
     }
   }
 
@@ -455,6 +507,8 @@ export default function PipelinePage() {
                 color={color}
                 articles={getArticlesByStatus(status)}
                 onDelete={handleDelete}
+                onWrite={handleWrite}
+                writingArticles={writingArticles}
               />
             ))}
           </div>

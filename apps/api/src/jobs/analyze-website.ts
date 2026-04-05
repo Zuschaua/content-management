@@ -6,10 +6,14 @@ import { agentJobs, clients, knowledgeBaseSections, crawlJobs } from "../db/sche
 import { resolveConfig } from "../services/agent-config.service.js";
 import { WebsiteAnalyzerAgent } from "@content-factory/agents";
 import type { CrawledPage, KnowledgeBaseSection } from "@content-factory/agents";
+import { getQueue } from "../lib/queue.js";
+import { signJobPayload } from "../lib/crypto.js";
 
 export interface AnalyzeWebsiteJobData {
   agentJobId: string;
   clientId: string;
+  /** When true, automatically enqueue a suggest-articles job after KB analysis completes */
+  autoSuggest?: boolean;
 }
 
 const MAX_PAGES = 20;
@@ -290,4 +294,34 @@ export async function processAnalyzeWebsiteJob(job: Job<AnalyzeWebsiteJobData>):
     })
     .where(eq(agentJobs.id, agentJobId));
   await job.updateProgress(100);
+
+  // Chain: auto-generate suggestions if requested (e.g. on initial client creation)
+  if (job.data.autoSuggest) {
+    try {
+      const [suggestJob] = await db
+        .insert(agentJobs)
+        .values({
+          clientId,
+          agentType: "article_suggester",
+          jobType: "suggest-articles",
+          status: "queued",
+          progress: 0,
+          inputData: { triggeredBy: "post_kb_analysis", count: 5 },
+        })
+        .returning({ id: agentJobs.id });
+
+      const suggestJobData = { agentJobId: suggestJob.id, clientId, count: 5 };
+      await getQueue().add(
+        "suggest-articles",
+        { ...suggestJobData, _sig: signJobPayload(suggestJobData) },
+        {
+          jobId: suggestJob.id,
+          attempts: 3,
+          backoff: { type: "exponential", delay: 5000 },
+        }
+      );
+    } catch {
+      // Non-fatal: KB analysis succeeded, suggestions will need manual trigger
+    }
+  }
 }

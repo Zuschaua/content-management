@@ -635,6 +635,16 @@ export type AgentJob = {
   updatedAt: string;
 };
 
+export async function triggerWriteArticle(
+  clientId: string,
+  articleId: string
+): Promise<{ agentJobId: string; message: string }> {
+  return apiFetch(`/api/v1/clients/${clientId}/agents/write-article`, {
+    method: "POST",
+    body: JSON.stringify({ articleId }),
+  });
+}
+
 export async function triggerAnalyzeWebsite(
   clientId: string
 ): Promise<{ agentJobId: string; message: string }> {
