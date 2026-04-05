@@ -110,6 +110,10 @@ jobs:
               sleep 2
             done
 
+            # Enable pgvector extension (required before migrations)
+            echo "==> Enabling pgvector extension..."
+            docker compose exec -T postgres psql -U contentfactory -d contentfactory -c "CREATE EXTENSION IF NOT EXISTS vector;" || echo "pgvector already enabled or failed"
+
             # Run database migrations (WORKDIR in api container is /app/apps/api)
             echo "==> Running migrations..."
             docker compose run --rm api node dist/db/run-migrations.js || echo "Migrations already applied or skipped — continuing"
@@ -128,6 +132,14 @@ jobs:
             echo "==> Health Check:"
             curl -sf http://localhost:3001/api/v1/health && echo "API: OK" || echo "API: FAILED (may still be starting)"
             curl -sf http://localhost:3000 && echo "Web: OK" || echo "Web: FAILED (may still be starting)"
+
+            echo "==> Container Logs (last 30 lines each):"
+            echo "--- API ---"
+            docker logs content-factory-api-1 --tail 30 2>&1 || true
+            echo "--- Web ---"
+            docker logs content-factory-web-1 --tail 30 2>&1 || true
+            echo "--- Worker ---"
+            docker logs content-factory-worker-1 --tail 20 2>&1 || true
 
             echo ""
             echo "==> Deployment complete! App available at: http://con.peweo.dev"
