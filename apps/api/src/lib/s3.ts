@@ -8,10 +8,17 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const MINIO_ENDPOINT = process.env.MINIO_ENDPOINT ?? "localhost";
 const MINIO_PORT = process.env.MINIO_PORT ?? "9000";
-const MINIO_ACCESS_KEY = process.env.MINIO_ACCESS_KEY ?? "minioadmin";
-const MINIO_SECRET_KEY = process.env.MINIO_SECRET_KEY ?? "minioadmin";
 const MINIO_BUCKET = process.env.MINIO_BUCKET ?? "content-factory-uploads";
 const MINIO_USE_SSL = process.env.MINIO_USE_SSL === "true";
+
+// D5 fix: fail fast if credentials are not configured — never fall back to defaults
+const MINIO_ACCESS_KEY = process.env.MINIO_ACCESS_KEY;
+const MINIO_SECRET_KEY = process.env.MINIO_SECRET_KEY;
+if (!MINIO_ACCESS_KEY || !MINIO_SECRET_KEY) {
+  throw new Error(
+    "MINIO_ACCESS_KEY and MINIO_SECRET_KEY environment variables are required"
+  );
+}
 
 const protocol = MINIO_USE_SSL ? "https" : "http";
 

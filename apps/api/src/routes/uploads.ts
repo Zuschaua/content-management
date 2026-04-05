@@ -3,7 +3,8 @@ import { randomUUID } from "node:crypto";
 import { eq, and, desc } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { uploads, clients } from "../db/schema.js";
-import { requireAuth } from "../plugins/authenticate.js";
+import { requireAuth, requireRole } from "../plugins/authenticate.js";
+import { requireClientScope } from "../plugins/client-scope.js";
 import { putObject, deleteObject, getPresignedUrl } from "../lib/s3.js";
 import {
   allowedUploadMimeTypes,
@@ -24,9 +25,14 @@ export async function uploadRoutes(app: FastifyInstance) {
   // POST /:clientId/uploads — multipart file upload
   app.post(
     "/:clientId/uploads",
-    { preHandler: [requireAuth] },
+    { preHandler: [requireAuth, requireClientScope, requireRole("admin", "editor")] },
     async (request, reply) => {
       const { clientId } = request.params as { clientId: string };
+
+      // D4 fix: verify URL param matches the validated X-Client-Id header
+      if (request.clientId !== clientId) {
+        return reply.status(403).send({ error: "Client scope mismatch" });
+      }
 
       const [client] = await db
         .select({ id: clients.id })
@@ -96,9 +102,13 @@ export async function uploadRoutes(app: FastifyInstance) {
   // GET /:clientId/uploads — list uploads for a client
   app.get(
     "/:clientId/uploads",
-    { preHandler: [requireAuth] },
+    { preHandler: [requireAuth, requireClientScope] },
     async (request, reply) => {
       const { clientId } = request.params as { clientId: string };
+
+      if (request.clientId !== clientId) {
+        return reply.status(403).send({ error: "Client scope mismatch" });
+      }
 
       const [client] = await db
         .select({ id: clients.id })
@@ -121,12 +131,16 @@ export async function uploadRoutes(app: FastifyInstance) {
   // GET /:clientId/uploads/:uploadId/url — generate presigned download URL
   app.get(
     "/:clientId/uploads/:uploadId/url",
-    { preHandler: [requireAuth] },
+    { preHandler: [requireAuth, requireClientScope] },
     async (request, reply) => {
       const { clientId, uploadId } = request.params as {
         clientId: string;
         uploadId: string;
       };
+
+      if (request.clientId !== clientId) {
+        return reply.status(403).send({ error: "Client scope mismatch" });
+      }
 
       const [upload] = await db
         .select()
@@ -144,12 +158,16 @@ export async function uploadRoutes(app: FastifyInstance) {
   // DELETE /:clientId/uploads/:uploadId — remove from S3 + DB
   app.delete(
     "/:clientId/uploads/:uploadId",
-    { preHandler: [requireAuth] },
+    { preHandler: [requireAuth, requireClientScope, requireRole("admin", "editor")] },
     async (request, reply) => {
       const { clientId, uploadId } = request.params as {
         clientId: string;
         uploadId: string;
       };
+
+      if (request.clientId !== clientId) {
+        return reply.status(403).send({ error: "Client scope mismatch" });
+      }
 
       const [upload] = await db
         .select()
