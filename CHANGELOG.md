@@ -2,6 +2,22 @@
 
 All notable changes to Content Factory are documented in this file.
 
+## [0.9.0] — 2026-04-05
+
+### Added
+- **Article Writer Agent** — AI-powered full-article generation from approved outlines, with section-by-section writing and progress streaming
+- `POST /api/v1/clients/:clientId/agents/write-article` endpoint to enqueue article writing jobs
+- `POST /api/v1/clients/:clientId/agents/rewrite-section` endpoint to regenerate individual article sections
+- `ArticleWriter` agent in `packages/agents/` following the BaseAgent pattern
+- Concurrency guard migration (`0003_agent_job_concurrency_guard.sql`) preventing duplicate write jobs
+- Section-level rewrite support with transactional DB writes
+- TOCTOU protection on article status checks before job enqueue
+- Batch insert for article sections
+
+### Fixed
+- Wrapped rewrite-section DB writes in transaction for atomicity
+- Addressed structural audit findings: transaction safety, TOCTOU race condition, batch insert optimization
+
 ## [0.7.0] — 2026-04-05
 
 ### Added

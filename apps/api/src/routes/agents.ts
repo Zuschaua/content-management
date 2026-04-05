@@ -1,10 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import { Queue } from "bullmq";
 import IORedis from "ioredis";
-import { eq } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/index.js";
-import { agentJobs, clients } from "../db/schema.js";
+import { agentJobs, clients, articles, articleSections } from "../db/schema.js";
 import { requireAuth } from "../plugins/authenticate.js";
 
 const redisUrl = process.env.REDIS_URL ?? "redis://localhost:6379";
@@ -221,6 +221,260 @@ export async function agentRoutes(app: FastifyInstance) {
       return reply.status(202).send({
         agentJobId: agentJob.id,
         message: "Article suggestion job queued",
+      });
+    }
+  );
+
+  /**
+   * POST /api/v1/clients/:clientId/agents/write-article
+   *
+   * Enqueues an article writing job for the given client.
+   * Accepts articles at "approved" or "writing" (retry) status.
+   */
+  app.post<{ Params: { clientId: string } }>(
+    "/:clientId/agents/write-article",
+    { preHandler: [requireAuth] },
+    async (request, reply) => {
+      const paramsParsed = clientIdParamsSchema.safeParse(request.params);
+      if (!paramsParsed.success) {
+        return reply.status(400).send({ error: paramsParsed.error.errors[0]?.message ?? "Invalid params" });
+      }
+      const { clientId } = paramsParsed.data;
+
+      const bodySchema = z.object({
+        articleId: z.string().uuid(),
+      });
+      const bodyParsed = bodySchema.safeParse(request.body);
+      if (!bodyParsed.success) {
+        return reply.status(400).send({ error: bodyParsed.error.errors[0]?.message ?? "Invalid body" });
+      }
+      const { articleId } = bodyParsed.data;
+
+      // Verify client exists and is active
+      const clientRows = await db
+        .select({ id: clients.id, active: clients.active })
+        .from(clients)
+        .where(eq(clients.id, clientId))
+        .limit(1);
+
+      if (clientRows.length === 0) {
+        return reply.status(404).send({ error: "Client not found" });
+      }
+      if (!clientRows[0].active) {
+        return reply.status(409).send({ error: "Client is archived" });
+      }
+
+      // Verify article exists and belongs to this client
+      const articleRows = await db
+        .select({ id: articles.id, status: articles.status, outline: articles.outline })
+        .from(articles)
+        .where(and(eq(articles.id, articleId), eq(articles.clientId, clientId)))
+        .limit(1);
+
+      if (articleRows.length === 0) {
+        return reply.status(404).send({ error: "Article not found" });
+      }
+
+      const article = articleRows[0];
+
+      // Validate status
+      if (article.status !== "approved" && article.status !== "writing") {
+        return reply.status(422).send({
+          error: `Article status is "${article.status}" — must be "approved" or "writing" to start writing`,
+        });
+      }
+
+      // Validate outline exists
+      const outline = article.outline as { sections?: string[] } | null;
+      if (!outline?.sections?.length) {
+        return reply.status(422).send({ error: "Article has no outline sections" });
+      }
+
+      // Check for concurrent running job
+      const runningJobs = await db
+        .select({ id: agentJobs.id })
+        .from(agentJobs)
+        .where(
+          and(
+            eq(agentJobs.referenceId, articleId),
+            eq(agentJobs.jobType, "write-article"),
+            inArray(agentJobs.status, ["queued", "running"])
+          )
+        )
+        .limit(1);
+
+      if (runningJobs.length > 0) {
+        return reply.status(409).send({ error: "A write job is already running for this article" });
+      }
+
+      // Create agentJob — unique partial index prevents TOCTOU race
+      let agentJob: { id: string };
+      try {
+        [agentJob] = await db
+          .insert(agentJobs)
+          .values({
+            clientId,
+            agentType: "article_writer",
+            jobType: "write-article",
+            referenceId: articleId,
+            referenceType: "article",
+            status: "queued",
+            progress: 0,
+            inputData: { triggeredBy: request.user!.userId },
+          })
+          .returning({ id: agentJobs.id });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "";
+        if (msg.includes("agent_job_active_unique")) {
+          return reply.status(409).send({ error: "A write job is already running for this article" });
+        }
+        throw err;
+      }
+
+      // Enqueue BullMQ job
+      await getQueue().add(
+        "write-article",
+        { agentJobId: agentJob.id, clientId, articleId },
+        {
+          jobId: agentJob.id,
+          attempts: 2,
+          backoff: { type: "fixed", delay: 5000 },
+        }
+      );
+
+      return reply.status(202).send({
+        agentJobId: agentJob.id,
+        message: "Article writing job queued",
+      });
+    }
+  );
+
+  /**
+   * POST /api/v1/clients/:clientId/agents/rewrite-section
+   *
+   * Enqueues a section rewrite job for a specific article section.
+   */
+  app.post<{ Params: { clientId: string } }>(
+    "/:clientId/agents/rewrite-section",
+    { preHandler: [requireAuth] },
+    async (request, reply) => {
+      const paramsParsed = clientIdParamsSchema.safeParse(request.params);
+      if (!paramsParsed.success) {
+        return reply.status(400).send({ error: paramsParsed.error.errors[0]?.message ?? "Invalid params" });
+      }
+      const { clientId } = paramsParsed.data;
+
+      const bodySchema = z.object({
+        articleId: z.string().uuid(),
+        sectionId: z.string().uuid(),
+        instructions: z.string().optional(),
+      });
+      const bodyParsed = bodySchema.safeParse(request.body);
+      if (!bodyParsed.success) {
+        return reply.status(400).send({ error: bodyParsed.error.errors[0]?.message ?? "Invalid body" });
+      }
+      const { articleId, sectionId, instructions } = bodyParsed.data;
+
+      // Verify client exists and is active
+      const clientRows = await db
+        .select({ id: clients.id, active: clients.active })
+        .from(clients)
+        .where(eq(clients.id, clientId))
+        .limit(1);
+
+      if (clientRows.length === 0) {
+        return reply.status(404).send({ error: "Client not found" });
+      }
+      if (!clientRows[0].active) {
+        return reply.status(409).send({ error: "Client is archived" });
+      }
+
+      // Verify article exists and belongs to this client
+      const articleRows = await db
+        .select({ id: articles.id, status: articles.status })
+        .from(articles)
+        .where(and(eq(articles.id, articleId), eq(articles.clientId, clientId)))
+        .limit(1);
+
+      if (articleRows.length === 0) {
+        return reply.status(404).send({ error: "Article not found" });
+      }
+
+      const article = articleRows[0];
+
+      // Validate status — rewrite allowed on writing, written, proofreading
+      if (!["writing", "written", "proofreading"].includes(article.status!)) {
+        return reply.status(422).send({
+          error: `Article status is "${article.status}" — must be "writing", "written", or "proofreading" for section rewrite`,
+        });
+      }
+
+      // Verify section exists and belongs to article
+      const sectionRows = await db
+        .select({ id: articleSections.id })
+        .from(articleSections)
+        .where(and(eq(articleSections.id, sectionId), eq(articleSections.articleId, articleId)))
+        .limit(1);
+
+      if (sectionRows.length === 0) {
+        return reply.status(404).send({ error: "Section not found for this article" });
+      }
+
+      // Check for concurrent running rewrite job on same section
+      const runningJobs = await db
+        .select({ id: agentJobs.id })
+        .from(agentJobs)
+        .where(
+          and(
+            eq(agentJobs.referenceId, sectionId),
+            eq(agentJobs.jobType, "rewrite-section"),
+            inArray(agentJobs.status, ["queued", "running"])
+          )
+        )
+        .limit(1);
+
+      if (runningJobs.length > 0) {
+        return reply.status(409).send({ error: "A rewrite job is already running for this section" });
+      }
+
+      // Create agentJob — unique partial index prevents TOCTOU race
+      let agentJob: { id: string };
+      try {
+        [agentJob] = await db
+          .insert(agentJobs)
+          .values({
+            clientId,
+            agentType: "article_writer",
+            jobType: "rewrite-section",
+            referenceId: sectionId,
+            referenceType: "article_section",
+            status: "queued",
+            progress: 0,
+            inputData: { triggeredBy: request.user!.userId, instructions },
+          })
+          .returning({ id: agentJobs.id });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "";
+        if (msg.includes("agent_job_active_unique")) {
+          return reply.status(409).send({ error: "A rewrite job is already running for this section" });
+        }
+        throw err;
+      }
+
+      // Enqueue BullMQ job
+      await getQueue().add(
+        "rewrite-section",
+        { agentJobId: agentJob.id, clientId, articleId, sectionId, instructions },
+        {
+          jobId: agentJob.id,
+          attempts: 2,
+          backoff: { type: "fixed", delay: 5000 },
+        }
+      );
+
+      return reply.status(202).send({
+        agentJobId: agentJob.id,
+        message: "Section rewrite job queued",
       });
     }
   );

@@ -21,6 +21,13 @@ export type {
   ArticleSuggestion,
   ArticleSuggesterOutput,
 } from "./article-suggester.js";
+export { ArticleWriterAgent } from "./article-writer.js";
+export type {
+  ArticleWriterParams,
+  ArticleWriterOutput,
+  WrittenSection,
+  ArticleWriterClientContext,
+} from "./article-writer.js";
 export { createModelFromConfig } from "./create-model.js";
 
 /**
