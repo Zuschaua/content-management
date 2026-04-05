@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "../db/index.js";
 import { agentJobs, clients, articles, articleSections } from "../db/schema.js";
 import { requireAuth } from "../plugins/authenticate.js";
+import { signJobPayload } from "../lib/crypto.js";
 
 const redisUrl = process.env.REDIS_URL ?? "redis://localhost:6379";
 
@@ -73,9 +74,10 @@ export async function agentRoutes(app: FastifyInstance) {
         .returning({ id: agentJobs.id });
 
       // Enqueue the BullMQ job
+      const analyzeJobData = { agentJobId: agentJob.id, clientId };
       await getQueue().add(
         "analyze-website",
-        { agentJobId: agentJob.id, clientId },
+        { ...analyzeJobData, _sig: signJobPayload(analyzeJobData) },
         {
           jobId: agentJob.id, // Use DB id as BullMQ job id for easy correlation
           attempts: 3,
@@ -137,9 +139,10 @@ export async function agentRoutes(app: FastifyInstance) {
         .returning({ id: agentJobs.id });
 
       // Enqueue the BullMQ job
+      const trackJobData = { agentJobId: agentJob.id, clientId };
       await getQueue().add(
         "track-blog",
-        { agentJobId: agentJob.id, clientId },
+        { ...trackJobData, _sig: signJobPayload(trackJobData) },
         {
           jobId: agentJob.id,
           attempts: 3,
@@ -208,9 +211,10 @@ export async function agentRoutes(app: FastifyInstance) {
         .returning({ id: agentJobs.id });
 
       // Enqueue the BullMQ job
+      const suggestJobData = { agentJobId: agentJob.id, clientId, count, preferences };
       await getQueue().add(
         "suggest-articles",
-        { agentJobId: agentJob.id, clientId, count, preferences },
+        { ...suggestJobData, _sig: signJobPayload(suggestJobData) },
         {
           jobId: agentJob.id,
           attempts: 3,
@@ -332,9 +336,10 @@ export async function agentRoutes(app: FastifyInstance) {
       }
 
       // Enqueue BullMQ job
+      const writeJobData = { agentJobId: agentJob.id, clientId, articleId };
       await getQueue().add(
         "write-article",
-        { agentJobId: agentJob.id, clientId, articleId },
+        { ...writeJobData, _sig: signJobPayload(writeJobData) },
         {
           jobId: agentJob.id,
           attempts: 2,
@@ -462,9 +467,10 @@ export async function agentRoutes(app: FastifyInstance) {
       }
 
       // Enqueue BullMQ job
+      const rewriteJobData = { agentJobId: agentJob.id, clientId, articleId, sectionId, instructions };
       await getQueue().add(
         "rewrite-section",
-        { agentJobId: agentJob.id, clientId, articleId, sectionId, instructions },
+        { ...rewriteJobData, _sig: signJobPayload(rewriteJobData) },
         {
           jobId: agentJob.id,
           attempts: 2,
@@ -672,7 +678,7 @@ export async function agentRoutes(app: FastifyInstance) {
 
       await getQueue().add(
         job.jobType,
-        retryJobData,
+        { ...retryJobData, _sig: signJobPayload(retryJobData) },
         {
           jobId: retryJob.id,
           attempts: 3,

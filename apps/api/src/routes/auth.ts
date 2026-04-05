@@ -11,6 +11,7 @@ import {
 } from "../lib/auth.js";
 import { requireAuth } from "../plugins/authenticate.js";
 import { registerSchema, loginSchema } from "@content-factory/shared";
+import { audit } from "../lib/audit.js";
 
 export async function authRoutes(app: FastifyInstance) {
   app.post("/register", {
@@ -48,6 +49,8 @@ export async function authRoutes(app: FastifyInstance) {
 
     const sessionId = await createSession(user.id);
 
+    audit({ event: "auth.register", userId: user.id, ip: request.ip });
+
     return reply
       .setCookie(SESSION_COOKIE, sessionId, {
         httpOnly: true,
@@ -76,22 +79,26 @@ export async function authRoutes(app: FastifyInstance) {
 
     const { email, password } = parsed.data;
 
+    // Pre-hash a dummy value so timing is consistent whether user exists or not
+    const DUMMY_HASH = "$argon2id$v=19$m=65536,t=3,p=4$dW5rbm93bnNhbHQ$dW5rbm93bmhhc2g";
+
     const [user] = await db
       .select()
       .from(users)
       .where(eq(users.email, email))
       .limit(1);
 
-    if (!user) {
-      return reply.status(401).send({ error: "Invalid credentials" });
-    }
+    const hashToVerify = user?.passwordHash ?? DUMMY_HASH;
+    const valid = await argon2.verify(hashToVerify, password).catch(() => false);
 
-    const valid = await argon2.verify(user.passwordHash, password);
-    if (!valid) {
+    if (!user || !valid) {
+      audit({ event: "auth.login.failure", ip: request.ip, detail: { email } });
       return reply.status(401).send({ error: "Invalid credentials" });
     }
 
     const sessionId = await createSession(user.id);
+
+    audit({ event: "auth.login.success", userId: user.id, ip: request.ip });
 
     return reply
       .setCookie(SESSION_COOKIE, sessionId, {
@@ -119,6 +126,8 @@ export async function authRoutes(app: FastifyInstance) {
       if (sessionId) {
         await invalidateSession(sessionId);
       }
+
+      audit({ event: "auth.logout", userId: request.user!.userId, ip: request.ip });
 
       return reply
         .clearCookie(SESSION_COOKIE, { path: "/" })
