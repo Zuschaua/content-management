@@ -133,49 +133,54 @@ export async function processRewriteSectionJob(
     throw new Error(msg);
   }
 
-  // Update the section
-  await db
-    .update(articleSections)
-    .set({ body: rewriteResult.body!, updatedAt: new Date() })
-    .where(eq(articleSections.id, sectionId));
+  // Wrap all DB writes in a transaction to prevent corrupted state on partial failure
+  let nextVersion = 1;
+  let totalWordCount = 0;
+  await db.transaction(async (tx) => {
+    // Update the section
+    await tx
+      .update(articleSections)
+      .set({ body: rewriteResult.body!, updatedAt: new Date() })
+      .where(eq(articleSections.id, sectionId));
 
-  // Re-assemble full body from all sections (ordered by sortOrder)
-  const allSections = await db
-    .select({ heading: articleSections.heading, body: articleSections.body })
-    .from(articleSections)
-    .where(eq(articleSections.articleId, articleId))
-    .orderBy(articleSections.sortOrder);
+    // Re-assemble full body from all sections (ordered by sortOrder)
+    const allSections = await tx
+      .select({ heading: articleSections.heading, body: articleSections.body })
+      .from(articleSections)
+      .where(eq(articleSections.articleId, articleId))
+      .orderBy(articleSections.sortOrder);
 
-  const fullBody = allSections
-    .map((s) => `## ${s.heading}\n\n${s.body}`)
-    .join("\n\n");
+    const fullBody = allSections
+      .map((s) => `## ${s.heading}\n\n${s.body}`)
+      .join("\n\n");
 
-  const totalWordCount = fullBody.split(/\s+/).filter(Boolean).length;
+    totalWordCount = fullBody.split(/\s+/).filter(Boolean).length;
 
-  // Update article body
-  await db
-    .update(articles)
-    .set({
+    // Update article body
+    await tx
+      .update(articles)
+      .set({
+        body: fullBody,
+        wordCountActual: totalWordCount,
+        updatedAt: new Date(),
+      })
+      .where(eq(articles.id, articleId));
+
+    // Create article version
+    const maxVersionResult = await tx
+      .select({ maxVersion: max(articleVersions.version) })
+      .from(articleVersions)
+      .where(eq(articleVersions.articleId, articleId));
+
+    nextVersion = (maxVersionResult[0]?.maxVersion ?? 0) + 1;
+
+    await tx.insert(articleVersions).values({
+      articleId,
+      version: nextVersion,
       body: fullBody,
-      wordCountActual: totalWordCount,
-      updatedAt: new Date(),
-    })
-    .where(eq(articles.id, articleId));
-
-  // Create article version
-  const maxVersionResult = await db
-    .select({ maxVersion: max(articleVersions.version) })
-    .from(articleVersions)
-    .where(eq(articleVersions.articleId, articleId));
-
-  const nextVersion = (maxVersionResult[0]?.maxVersion ?? 0) + 1;
-
-  await db.insert(articleVersions).values({
-    articleId,
-    version: nextVersion,
-    body: fullBody,
-    changeSource: "agent",
-    changeNote: `Section rewrite: ${section.heading}`,
+      changeSource: "agent",
+      changeNote: `Section rewrite: ${section.heading}`,
+    });
   });
 
   await db.update(agentJobs).set({ progress: 90 }).where(eq(agentJobs.id, agentJobId));
