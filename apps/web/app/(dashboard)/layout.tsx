@@ -6,12 +6,12 @@ const API_BASE = process.env.API_URL ?? "http://localhost:3001";
 
 async function getSession() {
   const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get("session");
+  const sessionCookie = cookieStore.get("app_session");
   if (!sessionCookie) return null;
 
   try {
     const res = await fetch(`${API_BASE}/api/v1/auth/me`, {
-      headers: { Cookie: `session=${sessionCookie.value}` },
+      headers: { Cookie: `app_session=${sessionCookie.value}` },
       cache: "no-store",
     });
     if (!res.ok) return null;
