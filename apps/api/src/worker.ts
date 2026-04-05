@@ -60,10 +60,23 @@ agentWorker.on("completed", (job) => {
 
 agentWorker.on("failed", async (job, err) => {
   if (!job) return;
-  console.error(`Job ${job.id} failed (attempt ${job.attemptsMade}/${job.opts.attempts ?? 1}):`, err.message);
+  const maxAttempts = job.opts.attempts ?? 1;
+  console.error(`Job ${job.id} failed (attempt ${job.attemptsMade}/${maxAttempts}):`, err.message);
 
-  // If all retries exhausted, move to dead letter queue and mark DB record as failed
-  if (job.attemptsMade >= (job.opts.attempts ?? 1)) {
+  if (!job.data.agentJobId) return;
+
+  if (job.attemptsMade < maxAttempts) {
+    // D2 fix: update DB on intermediate failures so UI reflects retry state
+    await db
+      .update(agentJobs)
+      .set({
+        status: "queued",
+        progress: 0,
+        errorMessage: `Attempt ${job.attemptsMade}/${maxAttempts} failed: ${err.message}. Retrying…`,
+        updatedAt: new Date(),
+      })
+      .where(eq(agentJobs.id, job.data.agentJobId));
+  } else {
     console.error(`Job ${job.id} permanently failed after ${job.attemptsMade} attempts — moving to DLQ`);
     await deadLetterQueue.add(job.name, {
       originalJobId: job.id,
@@ -74,8 +87,14 @@ agentWorker.on("failed", async (job, err) => {
       attempts: job.attemptsMade,
     });
 
-    // Ensure DB record reflects permanent failure
-    if (job.data.agentJobId) {
+    // D3 fix: only overwrite status if the job hasn't already been cancelled
+    const [current] = await db
+      .select({ status: agentJobs.status })
+      .from(agentJobs)
+      .where(eq(agentJobs.id, job.data.agentJobId))
+      .limit(1);
+
+    if (current && current.status !== "cancelled") {
       await db
         .update(agentJobs)
         .set({

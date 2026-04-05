@@ -470,18 +470,8 @@ export async function agentRoutes(app: FastifyInstance) {
         return reply.status(409).send({ error: `Cannot cancel job in "${job.status}" status` });
       }
 
-      // Try to remove/fail the BullMQ job
-      const bullJob = await getQueue().getJob(jobId);
-      if (bullJob) {
-        const state = await bullJob.getState();
-        if (state === "waiting" || state === "delayed") {
-          await bullJob.remove();
-        } else if (state === "active") {
-          await bullJob.moveToFailed(new Error("Cancelled by user"), "0", true);
-        }
-      }
-
-      // Update DB record
+      // D3 fix: update DB to cancelled FIRST to win any race with the
+      // worker's failed handler (which now skips if status is already cancelled)
       await db
         .update(agentJobs)
         .set({
@@ -491,6 +481,17 @@ export async function agentRoutes(app: FastifyInstance) {
           updatedAt: new Date(),
         })
         .where(eq(agentJobs.id, jobId));
+
+      // Then remove/fail the BullMQ job
+      const bullJob = await getQueue().getJob(jobId);
+      if (bullJob) {
+        const state = await bullJob.getState();
+        if (state === "waiting" || state === "delayed") {
+          await bullJob.remove();
+        } else if (state === "active") {
+          await bullJob.moveToFailed(new Error("Cancelled by user"), "0", true);
+        }
+      }
 
       return reply.send({ message: "Job cancelled", jobId });
     }
