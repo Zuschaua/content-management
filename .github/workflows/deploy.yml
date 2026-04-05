@@ -70,7 +70,8 @@ jobs:
               cat > .env <<EOF
             NODE_ENV=production
             ENCRYPTION_KEY=${ENCRYPTION_KEY}
-            NEXT_PUBLIC_API_URL=http://con.peweo.dev/api
+            NEXT_PUBLIC_API_URL=https://con.peweo.dev/api
+            CORS_ORIGIN=https://con.peweo.dev
             POSTGRES_USER=contentfactory
             POSTGRES_PASSWORD=contentfactory
             POSTGRES_DB=contentfactory
@@ -80,6 +81,10 @@ jobs:
             EOF
               echo "==> .env created"
             fi
+
+            # Always ensure these values are correct (patch existing .env)
+            sed -i 's|^NEXT_PUBLIC_API_URL=.*|NEXT_PUBLIC_API_URL=https://con.peweo.dev/api|' .env
+            grep -q '^CORS_ORIGIN=' .env && sed -i 's|^CORS_ORIGIN=.*|CORS_ORIGIN=https://con.peweo.dev|' .env || echo 'CORS_ORIGIN=https://con.peweo.dev' >> .env
 
             # Configure Caddy reverse proxy
             # Bind to :80 only — Cloudflare handles HTTPS (Flexible SSL mode).
