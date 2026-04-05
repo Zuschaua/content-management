@@ -3,7 +3,7 @@ import { eq, lt } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { sessions, users } from "../db/schema.js";
 
-export const SESSION_COOKIE = "session";
+export const SESSION_COOKIE = "cf_session";
 export const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 export function generateSessionId(): string {
