@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import argon2 from "argon2";
 import { eq } from "drizzle-orm";
 import { db } from "../db/index.js";
@@ -13,7 +13,15 @@ import { requireAuth } from "../plugins/authenticate.js";
 import { registerSchema, loginSchema } from "@content-factory/shared";
 
 export async function authRoutes(app: FastifyInstance) {
-  app.post("/register", async (request, reply) => {
+  app.post("/register", {
+    config: {
+      rateLimit: {
+        max: 3,
+        timeWindow: "1 hour",
+        keyGenerator: (request: FastifyRequest) => request.ip,
+      },
+    },
+  }, async (request, reply) => {
     const parsed = registerSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
@@ -52,7 +60,15 @@ export async function authRoutes(app: FastifyInstance) {
       .send({ user });
   });
 
-  app.post("/login", async (request, reply) => {
+  app.post("/login", {
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: "15 minutes",
+        keyGenerator: (request: FastifyRequest) => request.ip,
+      },
+    },
+  }, async (request, reply) => {
     const parsed = loginSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });

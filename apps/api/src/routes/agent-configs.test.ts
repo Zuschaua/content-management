@@ -28,10 +28,11 @@ import { db } from "../db/index.js";
 
 const adminUser = { userId: "user-1", role: "admin" as const, name: "Admin", email: "admin@test.com" };
 
-function buildApp(user = adminUser) {
+function buildApp(user = adminUser, clientId: string | null = null) {
   const app = Fastify({ logger: false });
   app.decorateRequest("user", null);
-  app.addHook("onRequest", async (req) => { req.user = user; });
+  app.decorateRequest("clientId", null);
+  app.addHook("onRequest", async (req) => { req.user = user; req.clientId = clientId; });
   app.register(agentConfigRoutes, { prefix: "/api/v1/agent-configs" });
   return app;
 }
@@ -198,6 +199,13 @@ describe("PATCH /api/v1/agent-configs/:id", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("updates display name without bumping prompt version", async () => {
+    // First select: loadConfigWithScope
+    const scopeChain = {
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue([mockConfig]),
+    };
+    // Second select: load current version
     const selectChain = {
       from: vi.fn().mockReturnThis(),
       where: vi.fn().mockReturnThis(),
@@ -209,7 +217,9 @@ describe("PATCH /api/v1/agent-configs/:id", () => {
       where: vi.fn().mockReturnThis(),
       returning: vi.fn().mockResolvedValue([updated]),
     };
-    (db.select as any).mockReturnValue(selectChain);
+    (db.select as any)
+      .mockReturnValueOnce(scopeChain)
+      .mockReturnValueOnce(selectChain);
     (db.update as any).mockReturnValue(updateChain);
 
     const app = buildApp();
@@ -227,6 +237,13 @@ describe("PATCH /api/v1/agent-configs/:id", () => {
   });
 
   it("bumps version and records history when system prompt changes", async () => {
+    // First select: loadConfigWithScope
+    const scopeChain = {
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue([mockConfig]),
+    };
+    // Second select: load current version
     const selectChain = {
       from: vi.fn().mockReturnThis(),
       where: vi.fn().mockReturnThis(),
@@ -239,7 +256,9 @@ describe("PATCH /api/v1/agent-configs/:id", () => {
       returning: vi.fn().mockResolvedValue([updated]),
     };
     const insertVersionChain = { values: vi.fn().mockResolvedValue([]) };
-    (db.select as any).mockReturnValue(selectChain);
+    (db.select as any)
+      .mockReturnValueOnce(scopeChain)
+      .mockReturnValueOnce(selectChain);
     (db.update as any).mockReturnValue(updateChain);
     (db.insert as any).mockReturnValue(insertVersionChain);
 
@@ -257,6 +276,7 @@ describe("PATCH /api/v1/agent-configs/:id", () => {
   });
 
   it("returns 404 when config not found", async () => {
+    // loadConfigWithScope returns not found
     const selectChain = {
       from: vi.fn().mockReturnThis(),
       where: vi.fn().mockReturnThis(),
@@ -279,6 +299,14 @@ describe("DELETE /api/v1/agent-configs/:id", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("deletes config and returns 204", async () => {
+    // loadConfigWithScope
+    const scopeChain = {
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue([mockConfig]),
+    };
+    (db.select as any).mockReturnValue(scopeChain);
+
     const deleteChain = {
       where: vi.fn().mockReturnThis(),
       returning: vi.fn().mockResolvedValue([{ id: "config-1" }]),
@@ -292,11 +320,13 @@ describe("DELETE /api/v1/agent-configs/:id", () => {
   });
 
   it("returns 404 when config not found", async () => {
-    const deleteChain = {
+    // loadConfigWithScope returns not found
+    const scopeChain = {
+      from: vi.fn().mockReturnThis(),
       where: vi.fn().mockReturnThis(),
-      returning: vi.fn().mockResolvedValue([]),
+      limit: vi.fn().mockResolvedValue([]),
     };
-    (db.delete as any).mockReturnValue(deleteChain);
+    (db.select as any).mockReturnValue(scopeChain);
 
     const app = buildApp();
     const res = await app.inject({ method: "DELETE", url: "/api/v1/agent-configs/nonexistent" });
@@ -316,11 +346,11 @@ describe("GET /api/v1/agent-configs/:id/versions", () => {
       { id: "v1", agentConfigId: "config-1", version: 1, systemPrompt: "Old prompt.", changedBy: "user-1", createdAt: new Date() },
     ];
 
-    // First select: check config exists
-    const configChain = {
+    // First select: loadConfigWithScope
+    const scopeChain = {
       from: vi.fn().mockReturnThis(),
       where: vi.fn().mockReturnThis(),
-      limit: vi.fn().mockResolvedValue([{ id: "config-1" }]),
+      limit: vi.fn().mockResolvedValue([mockConfig]),
     };
     // Second select: get versions
     const versionsChain = {
@@ -329,7 +359,7 @@ describe("GET /api/v1/agent-configs/:id/versions", () => {
       orderBy: vi.fn().mockResolvedValue(mockVersions),
     };
     (db.select as any)
-      .mockReturnValueOnce(configChain)
+      .mockReturnValueOnce(scopeChain)
       .mockReturnValueOnce(versionsChain);
 
     const app = buildApp();
@@ -343,6 +373,7 @@ describe("GET /api/v1/agent-configs/:id/versions", () => {
   });
 
   it("returns 404 when config not found", async () => {
+    // loadConfigWithScope returns not found
     const chain = {
       from: vi.fn().mockReturnThis(),
       where: vi.fn().mockReturnThis(),
@@ -365,6 +396,12 @@ describe("POST /api/v1/agent-configs/:id/rollback", () => {
     const currentRow = { version: 3 };
     const updated = { ...mockConfig, systemPrompt: "Old prompt.", version: 4 };
 
+    // First select: loadConfigWithScope
+    const scopeChain = {
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue([mockConfig]),
+    };
     const versionSelectChain = {
       from: vi.fn().mockReturnThis(),
       where: vi.fn().mockReturnThis(),
@@ -383,6 +420,7 @@ describe("POST /api/v1/agent-configs/:id/rollback", () => {
     };
 
     (db.select as any)
+      .mockReturnValueOnce(scopeChain)
       .mockReturnValueOnce(versionSelectChain)
       .mockReturnValueOnce(currentSelectChain);
     (db.insert as any).mockReturnValue(insertVersionChain);

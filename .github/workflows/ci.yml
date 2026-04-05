@@ -64,8 +64,8 @@ jobs:
       NODE_ENV: test
       PORT: 3001
       CORS_ORIGIN: http://localhost:3000
-      ENCRYPTION_KEY: test-encryption-key-32-chars-long!!
-      SESSION_SECRET: test-session-secret-for-ci-only
+      ENCRYPTION_KEY: ${{ secrets.TEST_ENCRYPTION_KEY }}
+      SESSION_SECRET: ${{ secrets.TEST_SESSION_SECRET }}
 
     steps:
       - uses: actions/checkout@v4
@@ -94,7 +94,7 @@ jobs:
           REDIS_URL: redis://localhost:6379
           NODE_ENV: test
           PORT: 3001
-          ENCRYPTION_KEY: test-encryption-key-32-chars-long!!
+          ENCRYPTION_KEY: ${{ secrets.TEST_ENCRYPTION_KEY }}
 
       - name: Wait for API to be ready
         run: |

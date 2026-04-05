@@ -16,6 +16,50 @@ const MAX_PAGES = 20;
 const MAX_CONTENT_CHARS = 8000;
 
 /**
+ * Validates a URL is safe to crawl: must be http/https and must not resolve
+ * to private, loopback, link-local, or cloud metadata IP ranges.
+ */
+function validateCrawlUrl(rawUrl: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new Error(`Invalid URL: ${rawUrl}`);
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(`Unsupported protocol: ${parsed.protocol} — only http and https are allowed`);
+  }
+
+  const hostname = parsed.hostname;
+
+  // Block loopback
+  if (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "[::1]" ||
+    hostname === "0.0.0.0"
+  ) {
+    throw new Error(`Crawling loopback addresses is not allowed`);
+  }
+
+  // Block RFC1918 private ranges, link-local, and cloud metadata IPs
+  const ipV4Match = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipV4Match) {
+    const [, a, b] = ipV4Match.map(Number);
+    if (
+      a === 10 ||                              // 10.0.0.0/8
+      (a === 172 && b >= 16 && b <= 31) ||     // 172.16.0.0/12
+      (a === 192 && b === 168) ||              // 192.168.0.0/16
+      (a === 169 && b === 254) ||              // 169.254.0.0/16 (link-local + cloud metadata)
+      a === 127                                // 127.0.0.0/8
+    ) {
+      throw new Error(`Crawling private/internal IP ranges is not allowed`);
+    }
+  }
+}
+
+/**
  * Crawls a client website using CheerioCrawler (lightweight, no browser binary required).
  * Follows same-domain links up to MAX_PAGES. Returns extracted text content per page.
  */
@@ -164,6 +208,18 @@ export async function processAnalyzeWebsiteJob(job: Job<AnalyzeWebsiteJobData>):
 
   await db.update(agentJobs).set({ progress: 30 }).where(eq(agentJobs.id, agentJobId));
   await job.updateProgress(30);
+
+  // Validate URL before crawling (SSRF prevention)
+  try {
+    validateCrawlUrl(client.websiteUrl);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await db
+      .update(agentJobs)
+      .set({ status: "failed", errorMessage: message, completedAt: new Date() })
+      .where(eq(agentJobs.id, agentJobId));
+    throw new Error(message);
+  }
 
   // Crawl the website
   let crawledPages: CrawledPage[];
