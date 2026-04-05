@@ -28,7 +28,7 @@ jobs:
 
       - run: pnpm turbo typecheck
 
-      - run: pnpm turbo test
+      - run: pnpm turbo test --filter=!@content-factory/e2e
 
   e2e-tests:
     runs-on: ubuntu-latest

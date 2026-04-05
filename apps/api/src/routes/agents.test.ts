@@ -27,6 +27,11 @@ vi.mock("ioredis", () => ({
   default: vi.fn().mockImplementation(() => ({})),
 }));
 
+vi.mock("../lib/crypto.js", () => ({
+  signJobPayload: vi.fn().mockReturnValue("test-signature"),
+  verifyJobSignature: vi.fn().mockReturnValue(true),
+}));
+
 import Fastify from "fastify";
 import { agentRoutes } from "./agents.js";
 import { db } from "../db/index.js";
