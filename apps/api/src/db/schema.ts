@@ -320,6 +320,29 @@ export const competitorContent = pgTable("competitor_content", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
+export const uploads = pgTable(
+  "uploads",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    filename: varchar("filename", { length: 255 }).notNull(),
+    mimeType: varchar("mime_type", { length: 127 }).notNull(),
+    size: integer("size").notNull(),
+    s3Key: varchar("s3_key", { length: 1024 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    index("uploads_client_id").on(table.clientId),
+    index("uploads_user_id").on(table.userId),
+  ]
+);
+
 export const agentConfigs = pgTable(
   "agent_configs",
   {

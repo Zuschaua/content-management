@@ -181,3 +181,15 @@ export const bulkTransitionSchema = z.object({
 export const bulkDismissSchema = z.object({
   articleIds: z.array(z.string().uuid()).min(1).max(50),
 });
+
+// --- Uploads ---
+
+export const allowedUploadMimeTypes = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/svg+xml",
+  "image/gif",
+] as const;
+
+export const UPLOAD_MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
