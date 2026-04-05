@@ -113,7 +113,7 @@ async function crawlBlog(blogUrl: string): Promise<CrawledBlogPost[]> {
         url;
 
       const contentParts: string[] = [];
-      $("h1, h2, h3, h4, p, li").each((_: number, el: unknown) => {
+      $("h1, h2, h3, h4, p, li").each((_: number, el) => {
         const text = $(el).text().replace(/\s+/g, " ").trim();
         if (text.length > 20) {
           contentParts.push(text);
