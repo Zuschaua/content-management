@@ -80,8 +80,8 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Build API
-        run: pnpm --filter @content-factory/api build
+      - name: Build packages and API
+        run: pnpm turbo build --filter=@content-factory/api...
 
       - name: Run database migrations
         run: pnpm db:migrate
