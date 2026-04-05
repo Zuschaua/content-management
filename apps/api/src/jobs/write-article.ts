@@ -9,7 +9,7 @@ import {
   knowledgeBaseSections,
 } from "../db/schema.js";
 import { resolveConfig } from "../services/agent-config.service.js";
-import { ArticleWriterAgent } from "@content-factory/agents";
+import { ArticleWriterAgent, generateOutline, createModelFromConfig } from "@content-factory/agents";
 import type { ArticleWriterOutput } from "@content-factory/agents";
 import { canTransition } from "@content-factory/shared";
 
@@ -71,17 +71,6 @@ export async function processWriteArticleJob(
     throw new Error(msg);
   }
 
-  // Validate outline
-  const outline = article.outline as { sections?: string[] } | null;
-  if (!outline?.sections?.length) {
-    const msg = "Article has no outline sections — cannot generate content";
-    await db
-      .update(agentJobs)
-      .set({ status: "failed", errorMessage: msg, completedAt: new Date() })
-      .where(eq(agentJobs.id, agentJobId));
-    throw new Error(msg);
-  }
-
   // Transition to writing if approved
   if (article.status === "approved") {
     if (!canTransition("approved", "writing")) {
@@ -133,6 +122,25 @@ export async function processWriteArticleJob(
 
   await db.update(agentJobs).set({ progress: 20 }).where(eq(agentJobs.id, agentJobId));
   await job.updateProgress(20);
+
+  // Auto-generate outline if missing
+  let outline = article.outline as { sections?: string[] } | null;
+  if (!outline?.sections?.length) {
+    const model = createModelFromConfig(config);
+    outline = await generateOutline({
+      model,
+      title: article.title,
+      contentFormat: article.contentFormat ?? "general",
+      targetKeywords: article.targetKeywords ?? [],
+      wordCountTarget: article.wordCountTarget ?? 1500,
+      clientContext,
+    });
+    // Persist generated outline back to the article
+    await db
+      .update(articles)
+      .set({ outline: outline as Record<string, unknown>, updatedAt: new Date() })
+      .where(eq(articles.id, articleId));
+  }
 
   // Run the agent
   const agent = new ArticleWriterAgent(config);

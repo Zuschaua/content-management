@@ -349,7 +349,7 @@ export default function PipelinePage() {
       );
     } catch (err: unknown) {
       const e = err as { body?: { error?: string } };
-      setError(e?.body?.error ?? "Failed to start writing — ensure the article has outline sections");
+      setError(e?.body?.error ?? "Failed to start writing");
     } finally {
       setWritingArticles((prev) => {
         const next = new Set(prev);
