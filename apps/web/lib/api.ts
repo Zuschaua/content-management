@@ -671,3 +671,55 @@ export async function scheduleArticle(
     scheduledDate: scheduledDate ?? undefined,
   });
 }
+
+// --- Dashboard API ---
+
+export type DashboardStatsResponse = {
+  pipeline: {
+    suggested: number;
+    approved: number;
+    writing: number;
+    written: number;
+    proofreading: number;
+    ready: number;
+    total: number;
+  };
+  readyToExport: number;
+  activeClients: number;
+  recentActivity: Array<{
+    type:
+      | "article_transition"
+      | "job_completed"
+      | "job_failed"
+      | "article_created";
+    articleId?: string;
+    articleTitle?: string;
+    clientName: string;
+    fromStatus?: string;
+    toStatus?: string;
+    agentType?: string;
+    timestamp: string;
+  }>;
+  jobStatus: {
+    running: number;
+    queued: number;
+    failed: number;
+    completedToday: number;
+  };
+  clientOverviews: Array<{
+    id: string;
+    name: string;
+    articleCount: number;
+    readyCount: number;
+    inProgressCount: number;
+    kbComplete: boolean;
+    lastActivityAt: string | null;
+  }>;
+};
+
+export async function getDashboardStats(
+  clientId?: string
+): Promise<DashboardStatsResponse> {
+  const params = clientId ? `?clientId=${encodeURIComponent(clientId)}` : "";
+  return apiFetch(`/api/v1/dashboard/stats${params}`);
+}

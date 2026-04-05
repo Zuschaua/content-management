@@ -1,3 +1,5 @@
+export * from "./dashboard.js";
+
 export type UserRole = "admin" | "editor" | "writer";
 
 export type AgentType =
