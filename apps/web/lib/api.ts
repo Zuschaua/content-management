@@ -635,6 +635,14 @@ export type AgentJob = {
   updatedAt: string;
 };
 
+export async function triggerAnalyzeWebsite(
+  clientId: string
+): Promise<{ agentJobId: string; message: string }> {
+  return apiFetch(`/api/v1/clients/${clientId}/agents/analyze-website`, {
+    method: "POST",
+  });
+}
+
 export async function triggerSuggestions(
   clientId: string,
   count?: number,

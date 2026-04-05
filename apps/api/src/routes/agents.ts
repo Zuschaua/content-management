@@ -1,14 +1,11 @@
 import type { FastifyInstance } from "fastify";
-import { Queue } from "bullmq";
-import IORedis from "ioredis";
 import { eq, and, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/index.js";
 import { agentJobs, clients, articles, articleSections } from "../db/schema.js";
 import { requireAuth } from "../plugins/authenticate.js";
 import { signJobPayload } from "../lib/crypto.js";
-
-const redisUrl = process.env.REDIS_URL ?? "redis://localhost:6379";
+import { getQueue } from "../lib/queue.js";
 
 const clientIdParamsSchema = z.object({
   clientId: z.string().uuid("clientId must be a valid UUID"),
@@ -18,16 +15,6 @@ const jobParamsSchema = z.object({
   clientId: z.string().uuid("clientId must be a valid UUID"),
   jobId: z.string().uuid("jobId must be a valid UUID"),
 });
-
-// Lazy-init the BullMQ queue (shared with worker)
-let agentQueue: Queue | null = null;
-function getQueue(): Queue {
-  if (!agentQueue) {
-    const connection = new IORedis(redisUrl, { maxRetriesPerRequest: null });
-    agentQueue = new Queue("agent-jobs", { connection });
-  }
-  return agentQueue;
-}
 
 export async function agentRoutes(app: FastifyInstance) {
   /**

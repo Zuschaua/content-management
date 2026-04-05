@@ -10,6 +10,8 @@ import {
   deleteKbSection,
   listKbVersions,
   revertKbSection,
+  triggerAnalyzeWebsite,
+  getAgentJob,
   type KbSection,
   type KbSectionType,
   type KbVersion,
@@ -53,10 +55,52 @@ export default function KnowledgeBasePage() {
     content: "",
   });
   const [creating, setCreating] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisProgress, setAnalysisProgress] = useState<number | null>(null);
+  const [analysisJobId, setAnalysisJobId] = useState<string | null>(null);
 
   useEffect(() => {
     loadSections();
   }, [clientId]);
+
+  useEffect(() => {
+    if (!analysisJobId) return;
+    const interval = setInterval(async () => {
+      try {
+        const { job } = await getAgentJob(clientId, analysisJobId);
+        setAnalysisProgress(job.progress);
+        if (job.status === "completed") {
+          clearInterval(interval);
+          setAnalyzing(false);
+          setAnalysisJobId(null);
+          setAnalysisProgress(null);
+          await loadSections();
+        } else if (job.status === "failed" || job.status === "cancelled") {
+          clearInterval(interval);
+          setAnalyzing(false);
+          setAnalysisJobId(null);
+          setAnalysisProgress(null);
+          setError(`Analysis ${job.status}: ${job.errorMessage ?? "unknown error"}`);
+        }
+      } catch {
+        // ignore polling errors
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [analysisJobId, clientId]);
+
+  async function handleAnalyzeWebsite() {
+    setAnalyzing(true);
+    setError(null);
+    try {
+      const { agentJobId } = await triggerAnalyzeWebsite(clientId);
+      setAnalysisJobId(agentJobId);
+      setAnalysisProgress(0);
+    } catch (err: any) {
+      setAnalyzing(false);
+      setError(err?.body?.error ?? "Failed to start website analysis");
+    }
+  }
 
   async function loadSections() {
     setLoading(true);
@@ -174,12 +218,23 @@ export default function KnowledgeBasePage() {
           <span className="text-gray-300">/</span>
           <h1 className="text-2xl font-bold text-gray-900">Knowledge Base</h1>
         </div>
-        <button
-          onClick={() => setShowCreateForm(true)}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
-        >
-          + Add Section
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleAnalyzeWebsite}
+            disabled={analyzing}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60 transition-colors"
+          >
+            {analyzing
+              ? `Analyzing… ${analysisProgress != null ? `${analysisProgress}%` : ""}`
+              : "Analyze Website"}
+          </button>
+          <button
+            onClick={() => setShowCreateForm(true)}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
+          >
+            + Add Section
+          </button>
+        </div>
       </div>
 
       {error && (

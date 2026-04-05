@@ -1,9 +1,11 @@
 import type { FastifyInstance } from "fastify";
 import { eq, and, desc } from "drizzle-orm";
 import { db } from "../db/index.js";
-import { clients } from "../db/schema.js";
+import { clients, agentJobs } from "../db/schema.js";
 import { requireAuth, requireRole } from "../plugins/authenticate.js";
 import { createClientSchema, updateClientSchema } from "@content-factory/shared";
+import { getQueue } from "../lib/queue.js";
+import { signJobPayload } from "../lib/crypto.js";
 
 export async function clientRoutes(app: FastifyInstance) {
   // List all clients — authenticated users see active clients; admins see all
@@ -70,6 +72,36 @@ export async function clientRoutes(app: FastifyInstance) {
           createdAt: clients.createdAt,
           updatedAt: clients.updatedAt,
         });
+
+      // Auto-trigger website analysis to populate the Knowledge Base
+      if (client.websiteUrl) {
+        try {
+          const [agentJob] = await db
+            .insert(agentJobs)
+            .values({
+              clientId: client.id,
+              agentType: "website_analyzer",
+              jobType: "analyze-website",
+              status: "queued",
+              progress: 0,
+              inputData: { triggeredBy: "client_creation", userId: request.user!.userId },
+            })
+            .returning({ id: agentJobs.id });
+
+          const jobData = { agentJobId: agentJob.id, clientId: client.id };
+          await getQueue().add(
+            "analyze-website",
+            { ...jobData, _sig: signJobPayload(jobData) },
+            {
+              jobId: agentJob.id,
+              attempts: 3,
+              backoff: { type: "exponential", delay: 5000 },
+            }
+          );
+        } catch {
+          // Non-fatal: client was created, KB analysis will need manual trigger
+        }
+      }
 
       return reply.status(201).send({ client });
     }
