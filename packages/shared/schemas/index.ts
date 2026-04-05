@@ -148,6 +148,7 @@ export const createArticleSchema = z.object({
   outline: z.record(z.unknown()).optional(),
   strategicRationale: z.string().optional(),
   scheduledDate: z.string().optional(),
+  seoScore: z.number().int().min(0).max(100).optional(),
 });
 
 export const updateArticleSchema = createArticleSchema.partial().extend({
@@ -169,3 +170,14 @@ export const createArticleSectionSchema = z.object({
 });
 
 export const updateArticleSectionSchema = createArticleSectionSchema.partial();
+
+// --- Bulk Actions ---
+
+export const bulkTransitionSchema = z.object({
+  articleIds: z.array(z.string().uuid()).min(1).max(50),
+  status: z.enum(articleStatusValues),
+});
+
+export const bulkDismissSchema = z.object({
+  articleIds: z.array(z.string().uuid()).min(1).max(50),
+});

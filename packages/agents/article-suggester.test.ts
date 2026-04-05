@@ -40,6 +40,7 @@ const mockSuggestions = [
     },
     strategicRationale:
       "Competitors avoid deep technical content — this fills a clear gap and targets high-intent queries.",
+    seoScore: 82,
   },
   {
     title: "Local SEO for Small Businesses: A Complete 2025 Guide",
@@ -56,6 +57,7 @@ const mockSuggestions = [
     },
     strategicRationale:
       "Local SEO is underserved in the client's existing content and represents a large segment of their target audience.",
+    seoScore: 75,
   },
 ];
 

@@ -428,6 +428,7 @@ export type Article = {
   body?: string | null;
   scheduledDate?: string | null;
   assignedModel?: string | null;
+  seoScore?: number | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -462,6 +463,7 @@ export type CreateArticleInput = {
   outline?: Record<string, unknown>;
   strategicRationale?: string;
   scheduledDate?: string;
+  seoScore?: number;
 };
 
 export type UpdateArticleInput = Partial<
@@ -475,9 +477,12 @@ export type UpdateArticleInput = Partial<
 
 export async function listArticles(
   clientId: string,
-  status?: ArticleStatus
+  opts?: { status?: ArticleStatus; sort?: string }
 ): Promise<{ articles: Article[] }> {
-  const qs = status ? `?status=${status}` : "";
+  const params = new URLSearchParams();
+  if (opts?.status) params.set("status", opts.status);
+  if (opts?.sort) params.set("sort", opts.sort);
+  const qs = params.toString() ? `?${params.toString()}` : "";
   return apiFetch(`/api/v1/clients/${clientId}/articles${qs}`);
 }
 
@@ -586,6 +591,66 @@ export async function deleteArticleSection(
     `/api/v1/clients/${clientId}/articles/${articleId}/sections/${sectionId}`,
     { method: "DELETE" }
   );
+}
+
+// --- Bulk Actions API ---
+
+export async function bulkTransitionArticles(
+  clientId: string,
+  articleIds: string[],
+  status: ArticleStatus
+): Promise<{ transitioned: string[]; errors: Array<{ id: string; error: string }> }> {
+  return apiFetch(`/api/v1/clients/${clientId}/articles/bulk-transition`, {
+    method: "POST",
+    body: JSON.stringify({ articleIds, status }),
+  });
+}
+
+export async function bulkDismissArticles(
+  clientId: string,
+  articleIds: string[]
+): Promise<{ dismissed: string[]; requestedCount: number; dismissedCount: number }> {
+  return apiFetch(`/api/v1/clients/${clientId}/articles/bulk-dismiss`, {
+    method: "DELETE",
+    body: JSON.stringify({ articleIds }),
+  });
+}
+
+// --- Suggestion Generation API ---
+
+export type AgentJob = {
+  id: string;
+  clientId: string;
+  agentType: string;
+  jobType: string;
+  status: string;
+  progress: number;
+  inputData?: Record<string, unknown> | null;
+  outputData?: Record<string, unknown> | null;
+  errorMessage?: string | null;
+  tokensUsed?: number | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function triggerSuggestions(
+  clientId: string,
+  count?: number,
+  preferences?: string
+): Promise<{ agentJobId: string; message: string }> {
+  return apiFetch(`/api/v1/clients/${clientId}/agents/suggest-articles`, {
+    method: "POST",
+    body: JSON.stringify({ count: count ?? 5, preferences }),
+  });
+}
+
+export async function getAgentJob(
+  clientId: string,
+  jobId: string
+): Promise<{ job: AgentJob }> {
+  return apiFetch(`/api/v1/clients/${clientId}/agents/jobs/${jobId}`);
 }
 
 // --- Calendar API ---

@@ -153,6 +153,7 @@ export async function processSuggestArticlesJob(
       wordCountTarget: suggestion.wordCountTarget,
       outline: suggestion.outline as Record<string, unknown>,
       strategicRationale: suggestion.strategicRationale,
+      seoScore: suggestion.seoScore,
     });
   }
 

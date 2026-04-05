@@ -30,6 +30,7 @@ export interface ArticleSuggestion {
   wordCountTarget: number;
   outline: { sections: string[] };
   strategicRationale: string;
+  seoScore: number;
 }
 
 export interface ArticleSuggesterOutput {
@@ -84,6 +85,14 @@ const articleSuggestionSchema = z.object({
           .string()
           .describe(
             "1-2 sentences explaining why this topic is a strong content opportunity for the client right now"
+          ),
+        seoScore: z
+          .number()
+          .int()
+          .min(0)
+          .max(100)
+          .describe(
+            "Estimated SEO opportunity score 0-100 based on keyword difficulty, search volume potential, and content gap alignment"
           ),
       })
     )
