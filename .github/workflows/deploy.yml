@@ -1,0 +1,36 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    needs: []
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /opt/content-factory
+            git fetch origin
+            git reset --hard origin/main
+            docker compose up -d --build --remove-orphans
+            sleep 10
+            echo "==> Service Status:"
+            docker compose ps
+            echo "==> Health Check:"
+            curl -sf http://localhost:3001/api/v1/health && echo "API: OK" || echo "API: FAILED"
+            curl -sf http://localhost:3000 && echo "Web: OK" || echo "Web: FAILED"
