@@ -65,10 +65,12 @@ jobs:
       NODE_ENV: test
       PORT: 3001
       CORS_ORIGIN: http://localhost:3000
-      # Fallback to a static CI-only key when secret is not configured.
-      # This key is not sensitive — it only protects test data.
+      # Fallback to static CI-only values when secrets are not configured.
       ENCRYPTION_KEY: ${{ secrets.TEST_ENCRYPTION_KEY || '0000000000000000000000000000000000000000000000000000000000000001' }}
       SESSION_SECRET: ${{ secrets.TEST_SESSION_SECRET || 'ci-test-session-secret-not-for-production' }}
+      # MinIO stubs — file upload tests are not part of the e2e suite
+      MINIO_ACCESS_KEY: ci-minio-access-key
+      MINIO_SECRET_KEY: ci-minio-secret-key
 
     steps:
       - uses: actions/checkout@v4
@@ -100,6 +102,8 @@ jobs:
           PORT: 3001
           ENCRYPTION_KEY: ${{ secrets.TEST_ENCRYPTION_KEY || '0000000000000000000000000000000000000000000000000000000000000001' }}
           SESSION_SECRET: ${{ secrets.TEST_SESSION_SECRET || 'ci-test-session-secret-not-for-production' }}
+          MINIO_ACCESS_KEY: ci-minio-access-key
+          MINIO_SECRET_KEY: ci-minio-secret-key
 
       - name: Wait for API to be ready
         run: |
