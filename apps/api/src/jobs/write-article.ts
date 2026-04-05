@@ -1,5 +1,5 @@
 import type { Job } from "bullmq";
-import { eq, and, max, sql } from "drizzle-orm";
+import { eq, and, max } from "drizzle-orm";
 import { db } from "../db/index.js";
 import {
   agentJobs,
@@ -98,11 +98,6 @@ export async function processWriteArticleJob(
       .where(eq(articles.id, articleId));
   }
 
-  // If retry (already writing), delete existing sections
-  if (article.status === "writing") {
-    await db.delete(articleSections).where(eq(articleSections.articleId, articleId));
-  }
-
   // Resolve agent config
   const config = await resolveConfig("article_writer", clientId);
   if (!config) {
@@ -168,55 +163,62 @@ export async function processWriteArticleJob(
 
   const output = result.data as unknown as ArticleWriterOutput;
 
-  // Insert article sections
-  for (let i = 0; i < output.sections.length; i++) {
-    const section = output.sections[i];
-    await db.insert(articleSections).values({
-      articleId,
-      heading: section.heading,
-      body: section.body,
-      sortOrder: i,
-      sectionType: section.sectionType,
-    });
-  }
+  // Wrap all DB writes in a transaction to prevent corrupted state on partial failure
+  let nextVersion = 1;
+  await db.transaction(async (tx) => {
+    // If retry (already writing), delete existing sections first
+    if (article.status === "writing") {
+      await tx.delete(articleSections).where(eq(articleSections.articleId, articleId));
+    }
 
-  // Update article body, word count, and meta description
-  await db
-    .update(articles)
-    .set({
-      body: output.fullBody,
-      wordCountActual: output.totalWordCount,
-      metaDescription: output.metaDescription,
-      updatedAt: new Date(),
-    })
-    .where(eq(articles.id, articleId));
+    // Batch-insert all article sections
+    if (output.sections.length > 0) {
+      await tx.insert(articleSections).values(
+        output.sections.map((section, i) => ({
+          articleId,
+          heading: section.heading,
+          body: section.body,
+          sortOrder: i,
+          sectionType: section.sectionType,
+        }))
+      );
+    }
 
-  // Create article version
-  const maxVersionResult = await db
-    .select({ maxVersion: max(articleVersions.version) })
-    .from(articleVersions)
-    .where(eq(articleVersions.articleId, articleId));
-
-  const nextVersion = (maxVersionResult[0]?.maxVersion ?? 0) + 1;
-
-  await db.insert(articleVersions).values({
-    articleId,
-    version: nextVersion,
-    body: output.fullBody,
-    changeSource: "agent",
-    changeNote: "Initial article draft by AI writer",
-  });
-
-  await db.update(agentJobs).set({ progress: 90 }).where(eq(agentJobs.id, agentJobId));
-  await job.updateProgress(90);
-
-  // Transition to written
-  if (canTransition("writing", "written")) {
-    await db
+    // Update article body, word count, and meta description
+    await tx
       .update(articles)
-      .set({ status: "written", updatedAt: new Date() })
+      .set({
+        body: output.fullBody,
+        wordCountActual: output.totalWordCount,
+        metaDescription: output.metaDescription,
+        updatedAt: new Date(),
+      })
       .where(eq(articles.id, articleId));
-  }
+
+    // Create article version
+    const maxVersionResult = await tx
+      .select({ maxVersion: max(articleVersions.version) })
+      .from(articleVersions)
+      .where(eq(articleVersions.articleId, articleId));
+
+    nextVersion = (maxVersionResult[0]?.maxVersion ?? 0) + 1;
+
+    await tx.insert(articleVersions).values({
+      articleId,
+      version: nextVersion,
+      body: output.fullBody,
+      changeSource: "agent",
+      changeNote: "Initial article draft by AI writer",
+    });
+
+    // Transition to written
+    if (canTransition("writing", "written")) {
+      await tx
+        .update(articles)
+        .set({ status: "written", updatedAt: new Date() })
+        .where(eq(articles.id, articleId));
+    }
+  });
 
   await db.update(agentJobs).set({ progress: 95 }).where(eq(agentJobs.id, agentJobId));
   await job.updateProgress(95);

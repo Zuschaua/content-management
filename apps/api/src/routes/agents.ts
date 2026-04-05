@@ -307,20 +307,29 @@ export async function agentRoutes(app: FastifyInstance) {
         return reply.status(409).send({ error: "A write job is already running for this article" });
       }
 
-      // Create agentJob
-      const [agentJob] = await db
-        .insert(agentJobs)
-        .values({
-          clientId,
-          agentType: "article_writer",
-          jobType: "write-article",
-          referenceId: articleId,
-          referenceType: "article",
-          status: "queued",
-          progress: 0,
-          inputData: { triggeredBy: request.user!.userId },
-        })
-        .returning({ id: agentJobs.id });
+      // Create agentJob — unique partial index prevents TOCTOU race
+      let agentJob: { id: string };
+      try {
+        [agentJob] = await db
+          .insert(agentJobs)
+          .values({
+            clientId,
+            agentType: "article_writer",
+            jobType: "write-article",
+            referenceId: articleId,
+            referenceType: "article",
+            status: "queued",
+            progress: 0,
+            inputData: { triggeredBy: request.user!.userId },
+          })
+          .returning({ id: agentJobs.id });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "";
+        if (msg.includes("agent_job_active_unique")) {
+          return reply.status(409).send({ error: "A write job is already running for this article" });
+        }
+        throw err;
+      }
 
       // Enqueue BullMQ job
       await getQueue().add(
@@ -428,20 +437,29 @@ export async function agentRoutes(app: FastifyInstance) {
         return reply.status(409).send({ error: "A rewrite job is already running for this section" });
       }
 
-      // Create agentJob
-      const [agentJob] = await db
-        .insert(agentJobs)
-        .values({
-          clientId,
-          agentType: "article_writer",
-          jobType: "rewrite-section",
-          referenceId: sectionId,
-          referenceType: "article_section",
-          status: "queued",
-          progress: 0,
-          inputData: { triggeredBy: request.user!.userId, instructions },
-        })
-        .returning({ id: agentJobs.id });
+      // Create agentJob — unique partial index prevents TOCTOU race
+      let agentJob: { id: string };
+      try {
+        [agentJob] = await db
+          .insert(agentJobs)
+          .values({
+            clientId,
+            agentType: "article_writer",
+            jobType: "rewrite-section",
+            referenceId: sectionId,
+            referenceType: "article_section",
+            status: "queued",
+            progress: 0,
+            inputData: { triggeredBy: request.user!.userId, instructions },
+          })
+          .returning({ id: agentJobs.id });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "";
+        if (msg.includes("agent_job_active_unique")) {
+          return reply.status(409).send({ error: "A rewrite job is already running for this section" });
+        }
+        throw err;
+      }
 
       // Enqueue BullMQ job
       await getQueue().add(
