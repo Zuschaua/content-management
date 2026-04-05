@@ -30,6 +30,9 @@ COPY --from=build /app/apps/api/dist apps/api/dist
 COPY --from=build /app/apps/api/src/db/migrations apps/api/dist/db/migrations
 COPY --from=build /app/node_modules node_modules
 COPY --from=build /app/apps/api/node_modules apps/api/node_modules
+# Workspace packages: symlinks in apps/api/node_modules resolve to these paths
+COPY --from=build /app/packages/shared packages/shared
+COPY --from=build /app/packages/agents packages/agents
 WORKDIR /app/apps/api
 EXPOSE 3001
 CMD ["node", "dist/server.js"]

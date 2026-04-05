@@ -20,10 +20,11 @@ RUN cd apps/web && pnpm build
 
 FROM base AS runner
 ENV NODE_ENV=production
-# Next.js standalone output puts server.js at the root of the standalone dir
+# With outputFileTracingRoot=monorepo root, standalone mirrors the monorepo structure:
+# standalone/apps/web/server.js is the entry, standalone/node_modules has full pnpm deps
 COPY --from=build /app/apps/web/.next/standalone ./
-# Static and public assets must be alongside server.js (not under apps/web/)
-COPY --from=build /app/apps/web/.next/static .next/static
-COPY --from=build /app/apps/web/public public
+COPY --from=build /app/apps/web/.next/static apps/web/.next/static
+COPY --from=build /app/apps/web/public apps/web/public
+WORKDIR /app/apps/web
 EXPOSE 3000
 CMD ["node", "server.js"]
