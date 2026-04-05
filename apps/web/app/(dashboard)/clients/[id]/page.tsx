@@ -113,7 +113,13 @@ export default function ClientDetailPage() {
           href={`/clients/${id}/knowledge-base`}
           className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
         >
-          Knowledge Base →
+          Knowledge Base &rarr;
+        </a>
+        <a
+          href={`/clients/${id}/suggestions`}
+          className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+        >
+          Suggestions &rarr;
         </a>
       </div>
 

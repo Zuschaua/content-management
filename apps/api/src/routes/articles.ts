@@ -14,6 +14,8 @@ import {
   transitionArticleStatusSchema,
   createArticleSectionSchema,
   updateArticleSectionSchema,
+  bulkTransitionSchema,
+  bulkDismissSchema,
   canTransition,
   articleStatusValues,
 } from "@content-factory/shared";
@@ -25,7 +27,7 @@ export async function articleRoutes(app: FastifyInstance) {
     { preHandler: [requireAuth] },
     async (request, reply) => {
       const { clientId } = request.params as { clientId: string };
-      const { status } = request.query as { status?: string };
+      const { status, sort } = request.query as { status?: string; sort?: string };
 
       const [client] = await db
         .select({ id: clients.id })
@@ -34,6 +36,11 @@ export async function articleRoutes(app: FastifyInstance) {
         .limit(1);
 
       if (!client) return reply.status(404).send({ error: "Client not found" });
+
+      const orderBy =
+        sort === "seo_score"
+          ? desc(articles.seoScore)
+          : desc(articles.updatedAt);
 
       let rows;
       if (status && (articleStatusValues as readonly string[]).includes(status)) {
@@ -46,13 +53,13 @@ export async function articleRoutes(app: FastifyInstance) {
               eq(articles.status, status as (typeof articleStatusValues)[number])
             )
           )
-          .orderBy(desc(articles.updatedAt));
+          .orderBy(orderBy);
       } else {
         rows = await db
           .select()
           .from(articles)
           .where(eq(articles.clientId, clientId))
-          .orderBy(desc(articles.updatedAt));
+          .orderBy(orderBy);
       }
 
       return reply.send({ articles: rows });
@@ -242,6 +249,114 @@ export async function articleRoutes(app: FastifyInstance) {
       if (!article) return reply.status(404).send({ error: "Article not found" });
 
       return reply.send({ article });
+    }
+  );
+
+  // POST /clients/:clientId/articles/bulk-transition — bulk approve/transition
+  app.post(
+    "/:clientId/articles/bulk-transition",
+    { preHandler: [requireAuth] },
+    async (request, reply) => {
+      const { clientId } = request.params as { clientId: string };
+
+      const [client] = await db
+        .select({ id: clients.id })
+        .from(clients)
+        .where(eq(clients.id, clientId))
+        .limit(1);
+
+      if (!client) return reply.status(404).send({ error: "Client not found" });
+
+      const parsed = bulkTransitionSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: parsed.error.flatten() });
+      }
+
+      const { articleIds, status: toStatus } = parsed.data;
+
+      // Load all requested articles scoped to this client
+      const rows = await db
+        .select({ id: articles.id, status: articles.status })
+        .from(articles)
+        .where(
+          and(eq(articles.clientId, clientId), inArray(articles.id, articleIds))
+        );
+
+      const found = new Map(rows.map((r) => [r.id, r.status]));
+      const transitioned: string[] = [];
+      const errors: Array<{ id: string; error: string }> = [];
+
+      for (const id of articleIds) {
+        const currentStatus = found.get(id);
+        if (!currentStatus) {
+          errors.push({ id, error: "Not found" });
+          continue;
+        }
+        if (!canTransition(currentStatus, toStatus)) {
+          errors.push({
+            id,
+            error: `Invalid transition: ${currentStatus} → ${toStatus}`,
+          });
+          continue;
+        }
+        transitioned.push(id);
+      }
+
+      if (transitioned.length > 0) {
+        await db
+          .update(articles)
+          .set({ status: toStatus, updatedAt: new Date() })
+          .where(
+            and(
+              eq(articles.clientId, clientId),
+              inArray(articles.id, transitioned)
+            )
+          );
+      }
+
+      return reply.send({ transitioned, errors });
+    }
+  );
+
+  // DELETE /clients/:clientId/articles/bulk-dismiss — bulk delete suggested articles
+  app.delete(
+    "/:clientId/articles/bulk-dismiss",
+    { preHandler: [requireAuth] },
+    async (request, reply) => {
+      const { clientId } = request.params as { clientId: string };
+
+      const [client] = await db
+        .select({ id: clients.id })
+        .from(clients)
+        .where(eq(clients.id, clientId))
+        .limit(1);
+
+      if (!client) return reply.status(404).send({ error: "Client not found" });
+
+      const parsed = bulkDismissSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: parsed.error.flatten() });
+      }
+
+      const { articleIds } = parsed.data;
+
+      // Only delete articles that are in "suggested" status
+      const deleted = await db
+        .delete(articles)
+        .where(
+          and(
+            eq(articles.clientId, clientId),
+            eq(articles.status, "suggested"),
+            inArray(articles.id, articleIds)
+          )
+        )
+        .returning({ id: articles.id });
+
+      return reply.send({
+        dismissed: deleted.map((r) => r.id),
+        requestedCount: articleIds.length,
+        dismissedCount: deleted.length,
+      });
     }
   );
 

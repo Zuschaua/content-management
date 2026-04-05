@@ -15,6 +15,12 @@ export type {
   CompetitorAnalysisResult,
   CompetitorAnalysisOutput,
 } from "./competitor-analyzer.js";
+export { ArticleSuggesterAgent } from "./article-suggester.js";
+export type {
+  ArticleSuggesterParams,
+  ArticleSuggestion,
+  ArticleSuggesterOutput,
+} from "./article-suggester.js";
 export { createModelFromConfig } from "./create-model.js";
 
 /**

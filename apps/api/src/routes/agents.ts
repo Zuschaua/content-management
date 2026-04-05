@@ -155,6 +155,77 @@ export async function agentRoutes(app: FastifyInstance) {
   );
 
   /**
+   * POST /api/v1/clients/:clientId/agents/suggest-articles
+   *
+   * Enqueues an article suggestion job for the given client.
+   * Generates AI-powered topic suggestions with deduplication against existing content.
+   */
+  app.post<{ Params: { clientId: string } }>(
+    "/:clientId/agents/suggest-articles",
+    { preHandler: [requireAuth] },
+    async (request, reply) => {
+      const paramsParsed = clientIdParamsSchema.safeParse(request.params);
+      if (!paramsParsed.success) {
+        return reply.status(400).send({ error: paramsParsed.error.errors[0]?.message ?? "Invalid params" });
+      }
+      const { clientId } = paramsParsed.data;
+
+      const bodySchema = z.object({
+        count: z.number().int().min(1).max(20).default(5),
+        preferences: z.string().optional(),
+      });
+      const bodyParsed = bodySchema.safeParse(request.body);
+      if (!bodyParsed.success) {
+        return reply.status(400).send({ error: bodyParsed.error.errors[0]?.message ?? "Invalid body" });
+      }
+      const { count, preferences } = bodyParsed.data;
+
+      // Verify client exists
+      const clientRows = await db
+        .select({ id: clients.id, active: clients.active })
+        .from(clients)
+        .where(eq(clients.id, clientId))
+        .limit(1);
+
+      if (clientRows.length === 0) {
+        return reply.status(404).send({ error: "Client not found" });
+      }
+      if (!clientRows[0].active) {
+        return reply.status(409).send({ error: "Client is archived" });
+      }
+
+      // Create the agentJobs record (queued state)
+      const [agentJob] = await db
+        .insert(agentJobs)
+        .values({
+          clientId,
+          agentType: "suggestion_engine",
+          jobType: "suggest-articles",
+          status: "queued",
+          progress: 0,
+          inputData: { triggeredBy: request.user!.userId, count, preferences },
+        })
+        .returning({ id: agentJobs.id });
+
+      // Enqueue the BullMQ job
+      await getQueue().add(
+        "suggest-articles",
+        { agentJobId: agentJob.id, clientId, count, preferences },
+        {
+          jobId: agentJob.id,
+          attempts: 2,
+          backoff: { type: "fixed", delay: 5000 },
+        }
+      );
+
+      return reply.status(202).send({
+        agentJobId: agentJob.id,
+        message: "Article suggestion job queued",
+      });
+    }
+  );
+
+  /**
    * GET /api/v1/clients/:clientId/agents/jobs/:jobId
    *
    * Returns the current status of an agent job.

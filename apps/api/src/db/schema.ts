@@ -189,12 +189,14 @@ export const articles = pgTable(
     body: text("body"),
     scheduledDate: date("scheduled_date"),
     assignedModel: varchar("assigned_model", { length: 100 }),
+    seoScore: integer("seo_score"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
   },
   (table) => [
     index("articles_client_status").on(table.clientId, table.status),
     index("articles_client_date").on(table.clientId, table.scheduledDate),
+    index("articles_client_seo_score").on(table.clientId, table.seoScore),
   ]
 );
 
