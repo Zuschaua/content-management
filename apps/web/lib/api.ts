@@ -653,6 +653,24 @@ export async function getAgentJob(
   return apiFetch(`/api/v1/clients/${clientId}/agents/jobs/${jobId}`);
 }
 
+export async function cancelAgentJob(
+  clientId: string,
+  jobId: string
+): Promise<{ message: string; jobId: string }> {
+  return apiFetch(`/api/v1/clients/${clientId}/agents/jobs/${jobId}/cancel`, {
+    method: "POST",
+  });
+}
+
+export async function retryAgentJob(
+  clientId: string,
+  jobId: string
+): Promise<{ agentJobId: string; originalJobId: string; message: string }> {
+  return apiFetch(`/api/v1/clients/${clientId}/agents/jobs/${jobId}/retry`, {
+    method: "POST",
+  });
+}
+
 // --- Calendar API ---
 
 export async function getCalendar(

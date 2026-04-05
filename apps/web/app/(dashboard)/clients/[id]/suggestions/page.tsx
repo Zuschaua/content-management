@@ -9,6 +9,7 @@ import {
   bulkDismissArticles,
   triggerSuggestions,
   getAgentJob,
+  cancelAgentJob,
 } from "../../../../../lib/api";
 import type { Article, CreateArticleInput } from "../../../../../lib/api";
 
@@ -28,6 +29,8 @@ export default function SuggestionsPage() {
   const [genPreferences, setGenPreferences] = useState("");
   const [generating, setGenerating] = useState(false);
   const [genProgress, setGenProgress] = useState<number | null>(null);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
 
   // Manual create form
   const [showCreate, setShowCreate] = useState(false);
@@ -109,12 +112,14 @@ export default function SuggestionsPage() {
     setGenerating(true);
     setGenProgress(0);
     setError(null);
+    setCancelling(false);
     try {
       const { agentJobId } = await triggerSuggestions(
         clientId,
         genCount,
         genPreferences || undefined
       );
+      setActiveJobId(agentJobId);
 
       // Poll for completion
       const poll = async () => {
@@ -124,16 +129,22 @@ export default function SuggestionsPage() {
         if (job.status === "completed") {
           setGenerating(false);
           setGenProgress(null);
+          setActiveJobId(null);
           setShowGenerate(false);
           setGenPreferences("");
           await loadSuggestions();
           return;
         }
 
-        if (job.status === "failed") {
+        if (job.status === "failed" || job.status === "cancelled") {
           setGenerating(false);
           setGenProgress(null);
-          setError(job.errorMessage ?? "Suggestion generation failed");
+          setActiveJobId(null);
+          if (job.status === "cancelled") {
+            setShowGenerate(false);
+          } else {
+            setError(job.errorMessage ?? "Suggestion generation failed");
+          }
           return;
         }
 
@@ -144,7 +155,19 @@ export default function SuggestionsPage() {
     } catch {
       setGenerating(false);
       setGenProgress(null);
+      setActiveJobId(null);
       setError("Failed to start suggestion generation");
+    }
+  }
+
+  async function handleCancelJob() {
+    if (!activeJobId || cancelling) return;
+    setCancelling(true);
+    try {
+      await cancelAgentJob(clientId, activeJobId);
+    } catch {
+      setError("Failed to cancel job");
+      setCancelling(false);
     }
   }
 
@@ -399,12 +422,12 @@ export default function SuggestionsPage() {
                 {generating && genProgress != null && (
                   <div>
                     <div className="flex justify-between text-xs text-gray-500 mb-1">
-                      <span>Generating...</span>
+                      <span>{cancelling ? "Cancelling..." : "Generating..."}</span>
                       <span>{genProgress}%</span>
                     </div>
                     <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-blue-600 rounded-full transition-all"
+                        className={`h-full rounded-full transition-all ${cancelling ? "bg-red-400" : "bg-blue-600"}`}
                         style={{ width: `${genProgress}%` }}
                       />
                     </div>
@@ -412,16 +435,24 @@ export default function SuggestionsPage() {
                 )}
               </div>
               <div className="flex justify-end gap-2 mt-6">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!generating) setShowGenerate(false);
-                  }}
-                  disabled={generating}
-                  className="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
+                {generating ? (
+                  <button
+                    type="button"
+                    onClick={handleCancelJob}
+                    disabled={cancelling}
+                    className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {cancelling ? "Cancelling..." : "Cancel Job"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowGenerate(false)}
+                    className="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                  >
+                    Cancel
+                  </button>
+                )}
                 <button
                   type="submit"
                   disabled={generating}
