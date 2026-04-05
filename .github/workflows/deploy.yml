@@ -82,8 +82,11 @@ jobs:
             fi
 
             # Configure Caddy reverse proxy
+            # Bind to :80 only — Cloudflare handles HTTPS (Flexible SSL mode).
+            # Using a domain name triggers Caddy auto-HTTPS which conflicts with
+            # Cloudflare Flexible, causing an infinite HTTP->HTTPS redirect loop.
             cat > /etc/caddy/Caddyfile <<'CADDYEOF'
-            con.peweo.dev {
+            :80 {
               handle /api* {
                 reverse_proxy localhost:3001
               }
