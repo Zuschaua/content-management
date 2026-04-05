@@ -5,14 +5,20 @@ on:
     inputs:
       pattern:
         description: "Email pattern (SQL LIKE) to promote"
-        required: true
+        required: false
+        default: ""
+        type: string
+      list_only:
+        description: "Only list matching users (true/false)"
+        required: false
+        default: "false"
         type: string
 
 jobs:
   promote:
     runs-on: ubuntu-latest
     steps:
-      - name: Promote QA users to admin on VPS
+      - name: Promote/List QA users on VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -20,11 +26,16 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             cd /opt/content-factory
-            RESULT=$(docker compose exec -T postgres psql -U contentfactory -d contentfactory -c \
-              "UPDATE users SET role = 'admin' WHERE email ILIKE '${{ github.event.inputs.pattern }}' RETURNING id, email, role;")
-            echo "$RESULT"
-            if echo "$RESULT" | grep -q "0 rows"; then
-              echo "ERROR: No user found matching pattern ${{ github.event.inputs.pattern }}"
-              exit 1
+            if [ "${{ github.event.inputs.list_only }}" = "true" ]; then
+              docker compose exec -T postgres psql -U contentfactory -d contentfactory -c \
+                "SELECT id, email, role, created_at FROM users WHERE email ILIKE '${{ github.event.inputs.pattern }}' ORDER BY created_at DESC LIMIT 20;"
+            else
+              RESULT=$(docker compose exec -T postgres psql -U contentfactory -d contentfactory -c \
+                "UPDATE users SET role = 'admin' WHERE email ILIKE '${{ github.event.inputs.pattern }}' RETURNING id, email, role;")
+              echo "$RESULT"
+              if echo "$RESULT" | grep -q "0 rows"; then
+                echo "ERROR: No user found matching pattern"
+                exit 1
+              fi
+              echo "SUCCESS"
             fi
-            echo "SUCCESS: Users promoted to admin"
