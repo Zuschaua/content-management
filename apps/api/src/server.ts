@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import rateLimit from "@fastify/rate-limit";
 import multipart from "@fastify/multipart";
+import helmet from "@fastify/helmet";
 import { healthRoutes } from "./routes/health.js";
 import { authRoutes } from "./routes/auth.js";
 import { clientRoutes } from "./routes/clients.js";
@@ -32,6 +33,17 @@ await app.register(cookie);
 await app.register(rateLimit, { global: false });
 await app.register(multipart, {
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+});
+await app.register(helmet, {
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:"],
+    },
+  },
+  hsts: { maxAge: 31536000, includeSubDomains: true },
 });
 await app.register(authenticatePlugin);
 await app.register(clientScopePlugin);

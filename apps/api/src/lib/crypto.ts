@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
+import { createCipheriv, createDecipheriv, createHmac, randomBytes, timingSafeEqual } from "crypto";
 
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 12;
@@ -39,4 +39,19 @@ export function decrypt(ciphertext: string): string {
   const decipher = createDecipheriv(ALGORITHM, key, iv);
   decipher.setAuthTag(authTag);
   return decipher.update(encrypted) + decipher.final("utf8");
+}
+
+export function signJobPayload(data: Record<string, unknown>): string {
+  const key = getKey();
+  const canonical = JSON.stringify(data);
+  return createHmac("sha256", key).update(canonical).digest("hex");
+}
+
+export function verifyJobSignature(data: Record<string, unknown>, signature: string): boolean {
+  const key = getKey();
+  const canonical = JSON.stringify(data);
+  const expected = createHmac("sha256", key).update(canonical).digest();
+  const actual = Buffer.from(signature, "hex");
+  if (expected.length !== actual.length) return false;
+  return timingSafeEqual(expected, actual);
 }

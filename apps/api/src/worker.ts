@@ -9,6 +9,7 @@ import { processWriteArticleJob } from "./jobs/write-article.js";
 import { processRewriteSectionJob } from "./jobs/rewrite-section.js";
 import { db } from "./db/index.js";
 import { agentJobs } from "./db/schema.js";
+import { verifyJobSignature } from "./lib/crypto.js";
 
 const redisUrl = process.env.REDIS_URL ?? "redis://localhost:6379";
 const connection = new IORedis(redisUrl, { maxRetriesPerRequest: null });
@@ -21,6 +22,12 @@ const agentWorker = new Worker(
   "agent-jobs",
   async (job) => {
     console.log(`Processing job ${job.id}: ${job.name}`);
+
+    // Verify HMAC signature on job payload
+    const { _sig, ...payload } = job.data;
+    if (!_sig || !verifyJobSignature(payload, _sig)) {
+      throw new Error(`Job ${job.id} has invalid or missing signature — rejecting`);
+    }
 
     switch (job.name) {
       case "analyze-website":

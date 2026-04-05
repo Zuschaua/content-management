@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "../db/index.js";
 import { competitors, agentJobs, clients } from "../db/schema.js";
 import { requireAuth } from "../plugins/authenticate.js";
+import { signJobPayload } from "../lib/crypto.js";
 
 const redisUrl = process.env.REDIS_URL ?? "redis://localhost:6379";
 
@@ -142,7 +143,7 @@ export async function competitorRoutes(app: FastifyInstance) {
       const [updated] = await db
         .update(competitors)
         .set({ ...updates, updatedAt: new Date() })
-        .where(eq(competitors.id, competitorId))
+        .where(and(eq(competitors.id, competitorId), eq(competitors.clientId, clientId)))
         .returning();
 
       return reply.send({ competitor: updated });
@@ -173,7 +174,7 @@ export async function competitorRoutes(app: FastifyInstance) {
         return reply.status(404).send({ error: "Competitor not found" });
       }
 
-      await db.delete(competitors).where(eq(competitors.id, competitorId));
+      await db.delete(competitors).where(and(eq(competitors.id, competitorId), eq(competitors.clientId, clientId)));
 
       return reply.status(204).send();
     }
@@ -219,9 +220,10 @@ export async function competitorRoutes(app: FastifyInstance) {
         })
         .returning({ id: agentJobs.id });
 
+      const compJobData = { agentJobId: agentJob.id, clientId };
       await getQueue().add(
         "analyze-competitors",
-        { agentJobId: agentJob.id, clientId },
+        { ...compJobData, _sig: signJobPayload(compJobData) },
         {
           jobId: agentJob.id,
           attempts: 2,
