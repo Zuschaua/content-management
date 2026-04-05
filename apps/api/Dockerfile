@@ -24,7 +24,9 @@ RUN cd apps/api && pnpm build
 
 FROM base AS runner
 ENV NODE_ENV=production
+COPY --from=build /app/apps/api/package.json package.json
 COPY --from=build /app/apps/api/dist dist
+COPY --from=build /app/apps/api/src/db/migrations dist/db/migrations
 COPY --from=build /app/node_modules node_modules
 COPY --from=build /app/apps/api/node_modules apps/api/node_modules
 EXPOSE 3001
