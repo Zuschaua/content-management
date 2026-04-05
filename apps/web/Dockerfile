@@ -20,8 +20,10 @@ RUN cd apps/web && pnpm build
 
 FROM base AS runner
 ENV NODE_ENV=production
+# Next.js standalone output puts server.js at the root of the standalone dir
 COPY --from=build /app/apps/web/.next/standalone ./
-COPY --from=build /app/apps/web/.next/static apps/web/.next/static
-COPY --from=build /app/apps/web/public apps/web/public
+# Static and public assets must be alongside server.js (not under apps/web/)
+COPY --from=build /app/apps/web/.next/static .next/static
+COPY --from=build /app/apps/web/public public
 EXPOSE 3000
-CMD ["node", "apps/web/server.js"]
+CMD ["node", "server.js"]

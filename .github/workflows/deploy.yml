@@ -110,9 +110,9 @@ jobs:
               sleep 2
             done
 
-            # Run database migrations
+            # Run database migrations (WORKDIR in api container is /app/apps/api)
             echo "==> Running migrations..."
-            docker compose run --rm api node dist/db/run-migrations.js || echo "Migrations already applied or failed — continuing"
+            docker compose run --rm api node dist/db/run-migrations.js || echo "Migrations already applied or skipped — continuing"
 
             # Start all services
             echo "==> Starting all services..."

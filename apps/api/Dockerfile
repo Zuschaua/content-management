@@ -24,10 +24,12 @@ RUN cd apps/api && pnpm build
 
 FROM base AS runner
 ENV NODE_ENV=production
-COPY --from=build /app/apps/api/package.json package.json
-COPY --from=build /app/apps/api/dist dist
-COPY --from=build /app/apps/api/src/db/migrations dist/db/migrations
+# Place dist under apps/api/ so node_modules lookup traverses apps/api/node_modules
+COPY --from=build /app/apps/api/package.json apps/api/package.json
+COPY --from=build /app/apps/api/dist apps/api/dist
+COPY --from=build /app/apps/api/src/db/migrations apps/api/dist/db/migrations
 COPY --from=build /app/node_modules node_modules
 COPY --from=build /app/apps/api/node_modules apps/api/node_modules
+WORKDIR /app/apps/api
 EXPOSE 3001
 CMD ["node", "dist/server.js"]
