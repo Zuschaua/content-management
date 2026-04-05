@@ -37,6 +37,33 @@ function sanitizeConfig(row: Record<string, unknown>) {
   };
 }
 
+/**
+ * Loads a config by ID and enforces client-scope isolation:
+ * if the config belongs to a client, the request must carry that same clientId.
+ */
+async function loadConfigWithScope(
+  id: string,
+  requestClientId: string | null
+): Promise<
+  | { row: Record<string, unknown>; error?: undefined }
+  | { row?: undefined; error: { status: number; message: string } }
+> {
+  const [row] = await db
+    .select(configSelectFields)
+    .from(agentConfigs)
+    .where(eq(agentConfigs.id, id))
+    .limit(1);
+
+  if (!row) return { error: { status: 404, message: "Config not found" } };
+
+  // If config is client-scoped, enforce tenant boundary
+  if (row.clientId && row.clientId !== requestClientId) {
+    return { error: { status: 404, message: "Config not found" } };
+  }
+
+  return { row };
+}
+
 export async function agentConfigRoutes(app: FastifyInstance) {
   // GET /agent-configs/global — list global configs (no clientId)
   app.get(
@@ -228,14 +255,9 @@ export async function agentConfigRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { id } = request.params as { id: string };
 
-      const [row] = await db
-        .select(configSelectFields)
-        .from(agentConfigs)
-        .where(eq(agentConfigs.id, id))
-        .limit(1);
-
-      if (!row) return reply.status(404).send({ error: "Config not found" });
-      return reply.send({ config: sanitizeConfig(row) });
+      const result = await loadConfigWithScope(id, request.clientId);
+      if (result.error) return reply.status(result.error.status).send({ error: result.error.message });
+      return reply.send({ config: sanitizeConfig(result.row) });
     }
   );
 
@@ -250,6 +272,10 @@ export async function agentConfigRoutes(app: FastifyInstance) {
       if (!parsed.success) {
         return reply.status(400).send({ error: parsed.error.flatten() });
       }
+
+      // Enforce client-scope isolation before allowing update
+      const scopeCheck = await loadConfigWithScope(id, request.clientId);
+      if (scopeCheck.error) return reply.status(scopeCheck.error.status).send({ error: scopeCheck.error.message });
 
       // Load current record to bump version if prompt changed
       const [current] = await db
@@ -317,6 +343,10 @@ export async function agentConfigRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { id } = request.params as { id: string };
 
+      // Enforce client-scope isolation before allowing delete
+      const scopeCheck = await loadConfigWithScope(id, request.clientId);
+      if (scopeCheck.error) return reply.status(scopeCheck.error.status).send({ error: scopeCheck.error.message });
+
       const rows = await db
         .delete(agentConfigs)
         .where(eq(agentConfigs.id, id))
@@ -334,13 +364,9 @@ export async function agentConfigRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { id } = request.params as { id: string };
 
-      const [config] = await db
-        .select({ id: agentConfigs.id })
-        .from(agentConfigs)
-        .where(eq(agentConfigs.id, id))
-        .limit(1);
-
-      if (!config) return reply.status(404).send({ error: "Config not found" });
+      // Enforce client-scope isolation
+      const scopeCheck = await loadConfigWithScope(id, request.clientId);
+      if (scopeCheck.error) return reply.status(scopeCheck.error.status).send({ error: scopeCheck.error.message });
 
       const versions = await db
         .select({
@@ -365,6 +391,10 @@ export async function agentConfigRoutes(app: FastifyInstance) {
     { preHandler: [requireAuth, requireRole("admin")] },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+
+      // Enforce client-scope isolation
+      const scopeCheck = await loadConfigWithScope(id, request.clientId);
+      if (scopeCheck.error) return reply.status(scopeCheck.error.status).send({ error: scopeCheck.error.message });
 
       const parsed = rollbackPromptSchema.safeParse(request.body);
       if (!parsed.success) {

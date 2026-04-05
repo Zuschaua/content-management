@@ -99,6 +99,26 @@ const articleSuggestionSchema = z.object({
     .describe("List of article topic suggestions, each distinct and not duplicating existing content"),
 });
 
+const MAX_PREFERENCES_LENGTH = 500;
+
+/**
+ * Sanitize user-provided preferences text to prevent prompt injection.
+ * Strips markdown directives and system-prompt-like patterns, truncates to a safe length.
+ */
+function sanitizePreferences(raw: string): string {
+  return raw
+    // Strip markdown heading markers that could restructure prompt
+    .replace(/^#{1,6}\s/gm, "")
+    // Strip triple-backtick code fences
+    .replace(/```[\s\S]*?```/g, "")
+    // Strip patterns that look like system/assistant role injections
+    .replace(/\b(system|assistant)\s*:/gi, "")
+    // Strip XML-like tags commonly used for prompt injection
+    .replace(/<\/?[a-z][a-z0-9-]*\b[^>]*>/gi, "")
+    .slice(0, MAX_PREFERENCES_LENGTH)
+    .trim();
+}
+
 const DEFAULT_SYSTEM_PROMPT = `You are an SEO content strategist generating article topic suggestions for a client.
 Your goal is to propose high-value blog post topics that fill content gaps, target realistic keywords, and align with the client's audience and business.
 Only suggest topics that are genuinely distinct from the client's existing articles — never duplicate covered subjects.
@@ -160,7 +180,7 @@ export class ArticleSuggesterAgent extends BaseAgent {
         : "No existing articles — this is a fresh blog.";
 
     const preferencesBlock = preferences
-      ? `\n\n**Additional Preferences from User:**\n${preferences}`
+      ? `\n\n**Additional Preferences from User:**\n${sanitizePreferences(preferences)}`
       : "";
 
     const prompt = `Generate exactly ${count} unique article topic suggestions for this client.

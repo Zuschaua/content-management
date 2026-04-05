@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
+import rateLimit from "@fastify/rate-limit";
 import { healthRoutes } from "./routes/health.js";
 import { authRoutes } from "./routes/auth.js";
 import { clientRoutes } from "./routes/clients.js";
@@ -26,6 +27,7 @@ await app.register(cors, {
 });
 
 await app.register(cookie);
+await app.register(rateLimit, { global: false });
 await app.register(authenticatePlugin);
 await app.register(clientScopePlugin);
 
