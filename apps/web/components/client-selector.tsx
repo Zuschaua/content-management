@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   listClients,
   getActiveClientId,
@@ -55,9 +56,9 @@ export function ClientSelector() {
           {clients.length === 0 && (
             <div className="px-3 py-3 text-xs text-gray-400 text-center">
               No clients yet.{" "}
-              <a href="/clients" className="text-blue-600 hover:underline">
+              <Link href="/clients" className="text-blue-600 hover:underline">
                 Create one
-              </a>
+              </Link>
             </div>
           )}
           {clients.map((c) => (
