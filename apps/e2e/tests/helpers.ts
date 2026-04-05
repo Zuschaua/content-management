@@ -28,7 +28,7 @@ export async function registerAdmin(
 
   const body = await res.json();
   const setCookie = res.headers()["set-cookie"] ?? "";
-  const cookie = setCookie.split(";")[0]; // "cf_session=<value>"
+  const cookie = setCookie.split(";")[0]; // "app_session=<value>"
 
   return { cookie, userId: body.user.id, role: body.user.role };
 }

@@ -27,7 +27,7 @@ test.describe("Registration", () => {
       name: "New E2E User",
     });
     expect(body.user).not.toHaveProperty("passwordHash");
-    expect(res.headers()["set-cookie"]).toContain("cf_session");
+    expect(res.headers()["set-cookie"]).toContain("app_session");
   });
 
   test("returns 409 when email is already registered", async ({ request }) => {
@@ -80,7 +80,7 @@ test.describe("Login", () => {
     const body = await res.json();
     expect(body.user.email).toBe(email);
     expect(body.user).not.toHaveProperty("passwordHash");
-    expect(res.headers()["set-cookie"]).toContain("cf_session");
+    expect(res.headers()["set-cookie"]).toContain("app_session");
   });
 
   test("returns 401 for wrong password", async ({ request }) => {

@@ -24,7 +24,7 @@ vi.mock("../lib/auth.js", () => ({
   invalidateSession: vi.fn().mockResolvedValue(undefined),
   validateSession: vi.fn().mockResolvedValue(null),
   generateSessionId: vi.fn().mockReturnValue("test-session-id-64chars0000000000000000000000000000000000000000"),
-  SESSION_COOKIE: "cf_session",
+  SESSION_COOKIE: "app_session",
   SESSION_DURATION_MS: 604800000,
 }));
 
@@ -160,7 +160,7 @@ describe("POST /api/v1/auth/register", () => {
 
     expect(res.statusCode).toBe(201);
     expect(res.headers["set-cookie"]).toBeDefined();
-    expect(res.headers["set-cookie"]).toContain("cf_session");
+    expect(res.headers["set-cookie"]).toContain("app_session");
   });
 });
 
@@ -244,7 +244,7 @@ describe("POST /api/v1/auth/login", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.headers["set-cookie"]).toBeDefined();
-    expect(res.headers["set-cookie"]).toContain("cf_session");
+    expect(res.headers["set-cookie"]).toContain("app_session");
   });
 
   it("returns 400 with invalid payload", async () => {
@@ -274,7 +274,7 @@ describe("POST /api/v1/auth/logout", () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/v1/auth/logout",
-      cookies: { cf_session: "test-session-id-64chars0000000000000000000000000000000000000000" },
+      cookies: { app_session: "test-session-id-64chars0000000000000000000000000000000000000000" },
     });
 
     expect(res.statusCode).toBe(200);
