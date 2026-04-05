@@ -1,4 +1,4 @@
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, isNotNull } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { agentConfigs } from "../db/schema.js";
 import { decrypt } from "../lib/crypto.js";
@@ -31,9 +31,11 @@ async function fetchConfig(
   if (row.apiKeyEncrypted) {
     try {
       apiKey = decrypt(row.apiKeyEncrypted);
-    } catch {
-      // Log but don't crash — key may be usable from env fallback on the provider
-      console.warn(`Failed to decrypt API key for agentType=${agentType} clientId=${clientId}`);
+    } catch (err) {
+      console.error(
+        `[agent-config] Failed to decrypt API key for agentType=${agentType} clientId=${clientId}:`,
+        err instanceof Error ? err.message : err
+      );
     }
   }
 
@@ -53,8 +55,36 @@ async function fetchConfig(
 }
 
 /**
+ * Finds a decrypted API key from any global config that shares the given modelProvider.
+ * Used as a last-resort fallback when the resolved config has no apiKey.
+ */
+async function findApiKeyByProvider(modelProvider: string | null): Promise<string | null> {
+  if (!modelProvider) return null;
+
+  const rows = await db
+    .select({ apiKeyEncrypted: agentConfigs.apiKeyEncrypted })
+    .from(agentConfigs)
+    .where(
+      and(
+        eq(agentConfigs.modelProvider, modelProvider),
+        isNull(agentConfigs.clientId),
+        isNotNull(agentConfigs.apiKeyEncrypted)
+      )
+    )
+    .limit(1);
+
+  if (rows.length === 0 || !rows[0].apiKeyEncrypted) return null;
+
+  try {
+    return decrypt(rows[0].apiKeyEncrypted);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Resolves the effective agent config for a client with cascade:
- *   client-specific override → global default → null (not found)
+ *   client-specific override → global default → same-provider apiKey borrow → null
  */
 export async function resolveConfig(
   agentType: AgentType,
@@ -62,8 +92,21 @@ export async function resolveConfig(
 ): Promise<ResolvedAgentConfig | null> {
   // Client-specific override first
   const clientConfig = await fetchConfig(agentType, clientId);
-  if (clientConfig) return clientConfig;
+  if (clientConfig) {
+    if (clientConfig.apiKey) return clientConfig;
+    const fallbackKey = await findApiKeyByProvider(clientConfig.modelProvider);
+    if (fallbackKey) return { ...clientConfig, apiKey: fallbackKey };
+    return clientConfig;
+  }
 
   // Fall back to global
-  return fetchConfig(agentType, null);
+  const globalConfig = await fetchConfig(agentType, null);
+  if (globalConfig) {
+    if (globalConfig.apiKey) return globalConfig;
+    const fallbackKey = await findApiKeyByProvider(globalConfig.modelProvider);
+    if (fallbackKey) return { ...globalConfig, apiKey: fallbackKey };
+    return globalConfig;
+  }
+
+  return null;
 }

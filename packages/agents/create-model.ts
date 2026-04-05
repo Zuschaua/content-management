@@ -17,7 +17,7 @@ import type { ResolvedAgentConfig } from "./index.js";
 export function createModelFromConfig(config: ResolvedAgentConfig): LanguageModel {
   if (!config.apiKey) {
     throw new Error(
-      "Agent config is missing apiKey — ensure an API key is saved for this agent type."
+      `Agent config for "${config.agentType}" is missing apiKey — ensure an API key is saved for this agent type or for another global config with provider "${config.modelProvider}".`
     );
   }
 
