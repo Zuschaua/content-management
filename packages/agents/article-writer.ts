@@ -1,5 +1,6 @@
-import { generateText } from "ai";
+import { generateObject, generateText } from "ai";
 import { z } from "zod";
+import type { LanguageModel } from "ai";
 import type { AgentType } from "@content-factory/shared";
 import { BaseAgent } from "./base.js";
 import type { AgentInput, AgentOutput, ResolvedAgentConfig } from "./base.js";
@@ -74,6 +75,46 @@ Your writing is:
 - Backed by practical insights and actionable advice where relevant
 
 Always match the requested content format and write the exact section requested. Output only the section content — no headings, no meta-commentary.`;
+
+const outlineSchema = z.object({
+  sections: z.array(z.string()).min(2).max(10),
+});
+
+/**
+ * Generates an article outline from metadata + KB context when one is missing.
+ */
+export async function generateOutline(params: {
+  model: LanguageModel;
+  title: string;
+  contentFormat: string;
+  targetKeywords: string[];
+  wordCountTarget: number;
+  clientContext: ArticleWriterClientContext;
+}): Promise<{ sections: string[] }> {
+  const contextLines: string[] = [];
+  if (params.clientContext.nicheOverview) contextLines.push(`Niche: ${params.clientContext.nicheOverview}`);
+  if (params.clientContext.targetAudience) contextLines.push(`Audience: ${params.clientContext.targetAudience}`);
+  if (params.clientContext.contentGaps) contextLines.push(`Content gaps: ${params.clientContext.contentGaps}`);
+
+  const contextBlock = contextLines.length > 0 ? contextLines.join("\n") : "No additional context.";
+
+  const result = await generateObject({
+    model: params.model,
+    schema: outlineSchema,
+    prompt: `Generate section headings for an SEO article.
+
+Title: ${params.title}
+Format: ${params.contentFormat}
+Target keywords: ${params.targetKeywords.join(", ") || "none"}
+Target word count: ${params.wordCountTarget}
+
+${contextBlock}
+
+Return an array of section headings including an introduction and conclusion. Each heading should be concise and descriptive.`,
+  });
+
+  return result.object;
+}
 
 export class ArticleWriterAgent extends BaseAgent {
   readonly agentType: AgentType = "article_writer";

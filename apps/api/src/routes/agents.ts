@@ -257,7 +257,7 @@ export async function agentRoutes(app: FastifyInstance) {
 
       // Verify article exists and belongs to this client
       const articleRows = await db
-        .select({ id: articles.id, status: articles.status, outline: articles.outline })
+        .select({ id: articles.id, status: articles.status })
         .from(articles)
         .where(and(eq(articles.id, articleId), eq(articles.clientId, clientId)))
         .limit(1);
@@ -273,12 +273,6 @@ export async function agentRoutes(app: FastifyInstance) {
         return reply.status(422).send({
           error: `Article status is "${article.status}" — must be "approved" or "writing" to start writing`,
         });
-      }
-
-      // Validate outline exists
-      const outline = article.outline as { sections?: string[] } | null;
-      if (!outline?.sections?.length) {
-        return reply.status(422).send({ error: "Article has no outline sections" });
       }
 
       // Check for concurrent running job

@@ -21,7 +21,7 @@ export type {
   ArticleSuggestion,
   ArticleSuggesterOutput,
 } from "./article-suggester.js";
-export { ArticleWriterAgent } from "./article-writer.js";
+export { ArticleWriterAgent, generateOutline } from "./article-writer.js";
 export type {
   ArticleWriterParams,
   ArticleWriterOutput,
