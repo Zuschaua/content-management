@@ -23,6 +23,7 @@ RUN cd packages/agents && pnpm build
 RUN cd apps/api && pnpm build
 
 FROM base AS runner
+RUN apt-get update && apt-get install -y --no-install-recommends procps && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production
 # Place dist under apps/api/ so node_modules lookup traverses apps/api/node_modules
 COPY --from=build /app/apps/api/package.json apps/api/package.json
