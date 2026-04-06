@@ -2,6 +2,17 @@
 
 All notable changes to Content Factory are documented in this file.
 
+## [0.10.0] — 2026-04-06
+
+### Added
+- **Auto-outline generation** — articles without outlines now get AI-generated section headings before writing begins, removing the manual outline requirement
+- Exported `generateOutline` helper from `packages/agents/` for reuse
+
+### Fixed
+- Fixed 400 Bad Request on "Analyze Website" — `triggerAnalyzeWebsite` now sends an empty JSON body as required by the API
+- Auto-trigger website analysis failures on client creation are now logged instead of silently swallowed
+- Removed premature outline validation gate from write-article job and API route — outline is now generated on-the-fly if missing
+
 ## [0.9.0] — 2026-04-05
 
 ### Added
